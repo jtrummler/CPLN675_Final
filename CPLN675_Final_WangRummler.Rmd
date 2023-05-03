@@ -30,6 +30,7 @@ library(grid)
 library(gridExtra)
 library(viridis)
 library(igraph)
+library(RSocrata)
 
 plotTheme <- theme(
   plot.title =element_text(size=12),
@@ -78,43 +79,53 @@ ggplot()+
   mapTheme
 ```
 ```{r}
-coordinates_to_linestring <- function(coords) {
-  coords_pairs <- paste0(coords[seq(1, length(coords), 2)], " ", coords[seq(2, length(coords), 2)])
-  coords_string <- paste(coords_pairs, collapse = ", ")
-  linestring <- paste0("LINESTRING(", coords_string, ")")
-  return(linestring)
-}
+# create fishnet
+Nashville_fishnet <- 
+  st_make_grid(nashville, 1000) %>%
+  st_sf()
 
+# clip to nashville
+Nashville_fishnet <-
+  Nashville_fishnet[nashville,]
+# plot
+ggplot() +
+  geom_sf(data=Nashville_fishnet) +
+  labs(title="Fishnet, 4000 Foot Resolution") +
+  mapTheme
 ```
+
 
 ```{r}
 ## install.packages("RSocrata")
 
-library("RSocrata")
 
 
-transit_reg <- read.socrata(
-  "https://data.nashville.gov/resource/kaau-hhd5.json",
+
+##  Metropolitan Transit Authority Bus Routes and remove null
+bus_stop <- read.socrata(
+  "https://data.nashville.gov/resource/vfe9-k7vc.json",
   app_token = "j9XHS8weUKChc4dFGzE03GdIU",
   email     = "ltscqian@gmail.com",
   password  = "qifx!7UR2m4GG8T"
-)
+) %>%
+  na.omit(bus_stop, cols = "geocoded_column.latitude")
 
-##  Metropolitan Transit Authority Bus Routes
-bus_route <- read.socrata(
-  "https://data.nashville.gov/resource/22t2-bdkj.json",
-  app_token = "j9XHS8weUKChc4dFGzE03GdIU",
-  email     = "ltscqian@gmail.com",
-  password  = "qifx!7UR2m4GG8T"
-)
-  bus_route_sf <- bus_route %>%
-    st_as_sf(wkt = "the_geom.corrdiantes", crs = 4326)
-  
-bus_route <- bus_route %>%
-  mutate(linestring = sapply(the_geom.coordinates, coordinates_to_linestring))
 
-bus_route_sf <- bus_route %>%
-  st_as_sf(wkt = "linestring", crs = 4326)
-  
+
+# convert bus_stop to sf
+bus_stop_sf <- bus_stop %>%
+    st_as_sf(coords = c("geocoded_column.longitude", "geocoded_column.latitude"), crs = 4326) %>%
+    st_transform(st_crs(nashville)) %>%
+    st_intersection(nashville)
+
+#plot 
+ggplot()+
+  geom_sf(data=nashville, fill='white', color='black')+
+  geom_sf(data=bus_stop_sf,color='purple')+
+  labs(title="Davidson County, Tennessee")+
+  mapTheme
+##  bus_route_sf <- bus_route %>%
+##    st_as_sf(wkt = "the_geom.corrdiantes", crs = 4326)
+
 ```
 
