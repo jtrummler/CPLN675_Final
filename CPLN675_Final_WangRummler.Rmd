@@ -128,39 +128,7 @@ ggplot() +
 ```
 
 
-```{r}
-## install.packages("RSocrata")
 
-
-
-
-##  Metropolitan Transit Authority Bus Routes and remove null
-bus_stop <- read.socrata(
-  "https://data.nashville.gov/resource/vfe9-k7vc.json",
-  app_token = "j9XHS8weUKChc4dFGzE03GdIU",
-  email     = "ltscqian@gmail.com",
-  password  = "qifx!7UR2m4GG8T"
-) %>%
-  na.omit(bus_stop, cols = "geocoded_column.latitude")
-
-
-
-# convert bus_stop to sf+.
-bus_stop_sf <- bus_stop %>%
-    st_as_sf(coords = c("geocoded_column.longitude", "geocoded_column.latitude"), crs = 4326) %>%
-    st_transform(st_crs(nashville)) %>%
-    st_intersection(nashville)
-
-#plot 
-ggplot()+
-  geom_sf(data=nashville, fill='white', color='black')+
-  geom_sf(data=bus_stop_sf,color='purple')+
-  labs(title="Davidson County, Tennessee")+
-  mapTheme
-##  bus_route_sf <- bus_route %>%
-##    st_as_sf(wkt = "the_geom.corrdiantes", crs = 4326)
-
-```
 ```{r}
 #NLCD LULC & LUCC
 
@@ -235,6 +203,169 @@ ggplot() +
                       labels=c("No Change","New Development"),
                       name = "") +
   labs(title = "Land Cover Development Change", subtitle = "As fishnet centroids") +
+  mapTheme
+```
+
+```{r}
+
+## plot land use in 2011
+ggplot() +
+  geom_sf(data=nashville) +
+  geom_raster(data=rast(lulc_clip) %>% na.omit %>% filter(value > 0), 
+              aes(x,y,fill=as.factor(value))) +
+  scale_fill_viridis(discrete=TRUE, name ="") +
+  labs(title = "Land Cover, 2011") +
+  mapTheme +
+  theme(legend.direction="horizontal")
+
+# landuse reclassification
+developed <- lulc_clip == 21 | lulc_clip == 22 | lulc_clip == 23 | lulc_clip == 24
+forest <- lulc_clip == 41 | lulc_clip == 42 | lulc_clip == 43 
+farm <- lulc_clip == 81 | lulc_clip == 82 
+wetlands <- lulc_clip == 90 | lulc_clip == 95 
+otherUndeveloped <- lulc_clip == 52 | lulc_clip == 71 | lulc_clip == 31 
+water <- lulc_clip == 11
+
+names(developed) <- "developed"
+names(forest) <- "forest"
+names(farm) <- "farm"
+names(wetlands) <- "wetlands"
+names(otherUndeveloped) <- "otherUndeveloped"
+names(water) <- "water"
+
+
+```
+
+```{r}
+# aggregateRaster
+aggregateRaster <- function(inputRasterList, theFishnet) {
+  #create an empty fishnet with the same dimensions as the input fishnet
+  theseFishnets <- theFishnet %>% dplyr::select()
+  #for each raster in the raster list
+  for (i in inputRasterList) {
+  #create a variable name corresponding to the ith raster
+  varName <- names(i)
+  #convert raster to points as an sf
+    thesePoints <-
+      rasterToPoints(i) %>%
+      as.data.frame() %>%
+      st_as_sf(coords = c("x", "y"), crs = st_crs(theFishnet)) %>%
+      filter(.[[1]] == 1)
+  #aggregate to the fishnet
+    thisFishnet <-
+      aggregate(thesePoints, theFishnet, length) %>%
+      mutate(!!varName := ifelse(is.na(.[[1]]),0,1))
+  #add to the larger fishnet
+    theseFishnets <- cbind(theseFishnets,thisFishnet)
+  }
+  #output all aggregates as one large fishnet
+   return(theseFishnets)
+  }
+```
+```{r}
+theRasterList <- c(developed,forest,farm,wetlands,otherUndeveloped,water)
+
+aggregatedRasters <-
+  aggregateRaster(theRasterList, Nashville_fishnet) %>%
+  dplyr::select(developed,forest,farm,wetlands,otherUndeveloped,water) %>%
+  mutate_if(is.numeric,as.factor)
+
+aggregatedRasters %>%
+  gather(var,value,developed:water) %>%
+  st_cast("POLYGON") %>%    #just to make sure no weird geometries slipped in
+  mutate(X = xyC(.)$x,
+         Y = xyC(.)$y) %>%
+  ggplot() +
+    geom_sf(data=nashville) +
+    geom_point(aes(X,Y, colour=as.factor(value))) +
+    facet_wrap(~var) +
+    scale_colour_manual(values = palette2,
+                        labels=c("Other","Land Cover"),
+                        name = "") +
+    labs(title = "Land Cover Types, 2001",
+         subtitle = "As fishnet centroids") +
+   mapTheme
+```
+
+```{r}
+## install.packages("RSocrata")
+
+##  Metropolitan Transit Authority Bus Routes and remove null
+bus_stop <- read.socrata(
+  "https://data.nashville.gov/resource/vfe9-k7vc.json",
+  app_token = "j9XHS8weUKChc4dFGzE03GdIU",
+  email     = "ltscqian@gmail.com",
+  password  = "qifx!7UR2m4GG8T"
+) %>%
+  na.omit(bus_stop, cols = "geocoded_column.latitude")
+
+
+
+# convert bus_stop to sf+.
+bus_stop_sf <- bus_stop %>%
+    st_as_sf(coords = c("geocoded_column.longitude", "geocoded_column.latitude"), crs = 4326) %>%
+    st_transform(st_crs(nashville)) %>%
+    st_intersection(nashville)
+
+#plot 
+ggplot()+
+  geom_sf(data=nashville, fill='white', color='black')+
+  geom_sf(data=bus_stop_sf,color='purple')+
+  labs(title="Davidson County, Tennessee")+
+  mapTheme
+##  bus_route_sf <- bus_route %>%
+##    st_as_sf(wkt = "the_geom.corrdiantes", crs = 4326)
+
+```
+
+```{r}
+
+# plot stops with fishnet, do not know if it will work(see urban growth rmd)
+ggplot() +
+  geom_point(data=Nashville_fishnet, 
+             aes(x=xyC(Nashville_fishnet)[,1], y=xyC(Nashville_fishnet)[,2],colour=lc_change),size=1.5) +
+  geom_sf(data=bus_stop_sf) +
+  scale_colour_manual(values = palette2,
+                      labels=c("No Change","New Development")) +
+  labs(title = "New Development and Highways",
+       subtitle = "As fishnet centroids") +
+  mapTheme
+
+```
+
+```{r}
+# measure distance to nearest bus stop
+
+emptyRaster <- lucc
+emptyRaster[] <- NA
+
+bus_stop_raster <- 
+  as(bus_stop_sf,'Spatial') %>%
+  rasterize(.,emptyRaster)
+
+bus_stop_distance <- distance(bus_stop_raster)
+names(bus_stop_distance) <- "distance_stops"
+
+busstop_Points <-
+  rasterToPoints(bus_stop_distance) %>%
+  as.data.frame() %>%
+  st_as_sf(coords = c("x", "y"), crs = st_crs(Nashville_fishnet))
+
+busstop_Points_fishnet <- 
+  aggregate(busstop_Points, Nashville_fishnet, mean) %>%
+  mutate(distance_stops = ifelse(is.na(distance_stops),0,distance_stops))
+
+ggplot() +
+  geom_sf(data=nashville) +
+  geom_point(data=busstop_Points_fishnet, aes(x=xyC(busstop_Points_fishnet)[,1], 
+                                             y=xyC(busstop_Points_fishnet)[,2], 
+                 colour=factor(ntile(distance_stops,5))),size=1.5) +
+  scale_colour_manual(values = palette5,
+                      labels=substr(quintileBreaks(busstop_Points_fishnet,"distance_stops"),1,8),
+                      name="Quintile\nBreaks") +
+  geom_sf(data=bus_stop_sf, colour = "red") +
+  labs(title = "Distance to Highways",
+       subtitle = "As fishnet centroids; Highways visualized in red") +
   mapTheme
 ```
 
