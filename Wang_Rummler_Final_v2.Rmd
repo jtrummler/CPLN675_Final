@@ -88,21 +88,38 @@ palette10 <- c("#f7fcf0","#e0f3db","#ccebc5","#a8ddb5","#7bccc4",
 paletteMain <- c("#AFD0C9FF", "#91A1BAFF", "#51628EFF","#182044FF","#0E122DFF")
 
 paletteQual <- c("#B39DDB", "#9575CD", "#7986CB", "#4FC3F7", "#4DD0E1", "#4DB6AC", "#81C784", "#AED581", "#DCE775", "#FFF176", "#FFD54F", "#FFB74D", "#FF8A65", "#A1887F", "#90A4AE", "#B0BEC5")
+
+#this function converts a column in to quintiles. It is used for mapping.
+quintileBreaks <- function(df,variable) {
+    as.character(quantile(df[[variable]],
+                          c(.01,.2,.4,.6,.8),na.rm=T))
+}
+
+#This function can be used to convert a polygon sf to centroids xy coords.
+xyC <- function(aPolygonSF) {
+  as.data.frame(
+    cbind(x=st_coordinates(st_centroid(aPolygonSF))[,1],
+          y=st_coordinates(st_centroid(aPolygonSF))[,2]))
+} 
+
+#this function convert a raster to a data frame so it can be plotted in ggplot
+rast <- function(inRaster) {
+  data.frame(
+    xyFromCell(inRaster, 1:ncell(inRaster)), 
+    value = getValues(inRaster)) }
 ```
 
 
 # Introduction
 
-Urban growth forecasting is a tactful strategy to predict where people may live in the future. Looking at population projections and land cover data, we can understand areas that may have greater development pressure so planners can prepare for future growth scenarios. In this study, we forecast urban growth in Davidson County, Tennessee.
+As cities experience consistent population growth, urban growth forecasting is a tactful strategy to predict where people may live in the future. Planners are in a constant battle between balancing the economic potential of its city through the opportunity of growth with the negative ecological externalities and infrastructure demands urban growth poses on the city. Many cities and regions in the U.S. have experienced outward growth, meaning that development has sprawled to suburban and exurban parts of their region, rather than investing in densified in-fill projects. As cities are experiencing the ramifications of sprawling development on climate change mitigation, traffic impact, municipal tax bases, and other negative outcomes, forecasting where growth occurs is vital to understand how proper management of growth strategies can benefit a city. Looking at population projections and land cover data, we can understand areas that may have greater development pressure so planners can prepare for future growth scenarios. In this study, we forecast urban growth in Davidson County, Tennessee.
 
-```{r, fig.width=12}
+```{r study area, warning=FALSE, message=FALSE}
 tennessee <- counties("TN") # county via tigris
 
 nashville <- tennessee %>%
   dplyr::filter(NAMELSAD == "Davidson County")%>%
   st_transform('ESRI:103527')
-
-
 
 ggplot()+
   geom_sf(data=tennessee, fill='grey', color='black')+
@@ -124,38 +141,19 @@ We are developing a predictive model of urban growth for the year 2029. We do th
 
 ## Planning Application
 
-Planners often try to assess population growth using a variety of strategies, such as demographic trend analyses, economic analyses, and scenario planning, to name a few. We are completing this model because the process of predicting growth is challenging. While using previous population data, historical land use change, and other spatially related factors, growth of a city is often non-linear and non-predictive given factors like economic development and job opportunities, public polcicies, and migration. 
+Planners often try to assess population growth using a variety of strategies, such as demographic trend analyses, economic analyses, and scenario planning, to name a few. We are completing this model because the process of predicting growth is challenging. While using previous population data, historical land use change, and other spatially related factors, growth of a city is often non-linear and non-predictive given factors like economic development and job opportunities, public policies, and migration. 
 
 Moreover, while regions like Davidson County have a strong urban core, much of the region is rapidly sprawling. In 2014, a [study]("https://wpln.org/post/how-bad-is-nashvilles-sprawl-new-study-ranks-it-among-the-worst/") by Smart Growth America and University of Utah ranked the Nashville region as one of the worst of nearly 221 metro areas for urban sprawl. We know that incentivizing growth in areas with infill potential, investing in transit-oriented development, and disincentivizing continual urban sprawl can help planners engage in more sustainable, compact development to minimize strain of infrastructure and natural resources.
 
-```{r, warning = FALSE, message = FALSE}
-#this function converts a column in to quintiles. It is used for mapping.
-quintileBreaks <- function(df,variable) {
-    as.character(quantile(df[[variable]],
-                          c(.01,.2,.4,.6,.8),na.rm=T))
-}
-
-#This function can be used to convert a polygon sf to centroids xy coords.
-xyC <- function(aPolygonSF) {
-  as.data.frame(
-    cbind(x=st_coordinates(st_centroid(aPolygonSF))[,1],
-          y=st_coordinates(st_centroid(aPolygonSF))[,2]))
-} 
-
-#this function convert a raster to a data frame so it can be plotted in ggplot
-rast <- function(inRaster) {
-  data.frame(
-    xyFromCell(inRaster, 1:ncell(inRaster)), 
-    value = getValues(inRaster)) }
-```
-
 # Data Set-Up
+
+First, we set up our data for analysis. This includes creating a fishnet grid overlay onto Davidson County, and aggregating our dependent variable, land use change between 2009 and 2019.
 
 ## Fishnet
 
-We first create the spatial structure of our fishnet grid. We decided to use a 1000 meter resolution. This was a challenge to decide given the balance between maximizing our model's accuracy while balancing out the computation intensity of the modeling process.
+We first create the spatial structure of our fishnet grid. We decided to use a 1000 feet resolution. This was a challenge to decide given the balance between maximizing our model's accuracy while balancing out the computation intensity of the modeling process. The fishnet grid allows us to create a granular spatial structure across our study region instead of working with dissimilar areal units, like census tracts or neighborhoods.
 
-```{r}
+```{r fishnet, warning=FALSE, message=FALSE}
 # create fishnet
 Nashville_fishnet <- 
   st_make_grid(nashville, 1000) %>%
@@ -165,24 +163,31 @@ Nashville_fishnet <-
 Nashville_fishnet <-
   Nashville_fishnet[nashville,]
 
-# plot
-ggplot() +
-  geom_sf(data=Nashville_fishnet) +
-  labs(title="Fishnet, 1000 Meter Resolution") +
-  mapTheme()
-```
-
-```{r}
+# add unique ID to each fishnet 
 Nashville_fishnet <-
   Nashville_fishnet %>%
   rownames_to_column("fishnetID") %>% 
   mutate(fishnetID = as.numeric(fishnetID)) %>%
   dplyr::select(fishnetID)
+
+# plot
+ggplot() +
+  geom_sf(data=Nashville_fishnet) +
+  labs(title="Fishnet, 1000 Meter Resolution", subtitle="Davidson County, TN") +
+  mapTheme()
 ```
 
 ## Land Use Change
 
-```{r}
+We retrieve land use change data from USGS National Land Cover Database, which can be found [here](https://www.mrlc.gov/data/nlcd-land-cover-change-index-conus). Particularly, we are looking at the change between 2009 and 2019. The land cover change data has 30 meter resolution, so we take the centroids of each hexbin and compare it to the land cover type to downsample the data, making it as accurate and computationally runnable as possible.
+
+We reclassified the data into several different overarching types to build as features into our model, and use the land cover change between the 2 years as our dependent variable (0 = unchanged, 1 = changed).
+
+### Land Cover - 2009
+
+First, we look at the land cover in the year 2019.
+
+```{r landcover,  warning=FALSE, message=FALSE}
 #NLCD LULC & LUCC
 
 lucc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/LUCC_2019_11.tif")
@@ -192,30 +197,38 @@ lulc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/nlcd_lulc_
 lucc_clip <- mask(lucc_input, nashville)
 lulc_clip <- mask(lulc_input, nashville)
 
-#plot lucc
-ggplot() +
-  geom_sf(data=nashville) +
-  geom_raster(data=rast(lucc_clip) %>% na.omit %>% filter(value > 0), 
-              aes(x,y,fill=as.factor(value))) +
-  scale_fill_manual(values=c(paletteQual))+
-  labs(title = "Land Cover Change, 2009-2019") +
-  mapTheme() +
-  theme(legend.direction="horizontal")
-```
-
-```{r}
 #plot lulc
 ggplot() +
   geom_sf(data=nashville) +
   geom_raster(data=rast(lulc_clip) %>% na.omit %>% filter(value > 0), 
               aes(x,y,fill=as.factor(value))) +
-  labs(title = "Land Cover (2011)", subtitle="Davidson County, TN") +
-  scale_fill_manual(values=c(paletteQual), name="Land Cover Type")+
+  labs(title = "Land Cover (2009)", subtitle="Davidson County, TN") +
+  scale_fill_manual(values=c(paletteQual), name="Land\nCover\nType")+
   mapTheme() +
   theme(legend.position="bottom")
 ```
 
-```{r}
+### Land Cover Change - 2009 to 2019
+
+We compare the land cover in 2009 and 2019, and map below the areas that changed, colored by the land type it changed to.
+
+```{r land change, warning=FALSE, message=FALSE}
+#plot lucc
+ggplot() +
+  geom_sf(data=nashville, fill="black") +
+  geom_raster(data=rast(lucc_clip) %>% na.omit %>% filter(value > 0), 
+              aes(x,y,fill=as.factor(value))) +
+  scale_fill_manual(values=c(paletteQual), name="Land Cover Type")+
+  labs(title = "Land Cover Change (2009 to 2019)", subtitle="Davidson County, TN") +
+  mapTheme() +
+  theme(legend.position="bottom")
+```
+
+### Binarized Classification of Change
+
+We also complete a reclassification matrix to feed into our land use change data to designate land type values of undeveloped to 0 and developed to 1. We then plot the change below, where values of 1 are in the teal color.
+
+```{r reclass, warning=FALSE, message=FALSE}
 #reclass matrix 
 reclassMatrix <- 
   matrix(c(
@@ -225,9 +238,7 @@ reclassMatrix <-
   ncol=3, byrow=T)
 
 reclassMatrix
-```
 
-```{r}
 #reclassify lucc
 lucc <- 
   reclassify(lucc_clip,reclassMatrix)
@@ -236,19 +247,21 @@ lucc[lucc < 1] <- NA
 
 names(lucc) <- "lc_change"
 
+# plot 1's
 ggplot() +
-  geom_sf(data=nashville) +
+  geom_sf(data=nashville, fill='black') +
   geom_raster(data=rast(lucc) %>% na.omit, 
               aes(x,y,fill=as.factor(value))) +
-  scale_fill_viridis(discrete=TRUE, name ="Land Cover\nChange") + 
-  labs(title="Development Land Use Change") +
+  scale_fill_manual(values=paletteQual[6],
+                    name="Change")+
+  #scale_fill_viridis(discrete=TRUE, name ="Land Cover\nChange") + 
+  labs(title="Land Use Change (2009 to 2019)", subtitle="Values of 1 indicate change") +
   mapTheme()
-
-
-
 ```
 
-```{r}
+We feed this information back into our fishnet to categorize based on developed and undeveloped, which is mapped below.
+
+```{r change points, warning=FALSE, message=FALSE}
 changePoints <-
   rasterToPoints(lucc) %>%
   as.data.frame() %>%
@@ -263,26 +276,37 @@ ggplot() +
   geom_sf(data=nashville) +
   geom_point(data=fishnet, 
              aes(x=xyC(fishnet)$x, y=xyC(fishnet)$y, colour=lc_change)) +
-  scale_colour_manual(values = c("#4FC3F7", "#81C784"),
+  scale_colour_manual(values = c("black", paletteQual[6]),
                       labels=c("No Change","New Development"),
                       name = "") +
   labs(title = "Land Cover Development Change", subtitle = "As fishnet centroids") +
   mapTheme()
 ```
 
-```{r}
-## plot land use in 2011
-ggplot() +
-  geom_sf(data=nashville) +
-  geom_raster(data=rast(lulc_clip) %>% na.omit %>% filter(value > 0), 
-              aes(x,y,fill=as.factor(value))) +
-  scale_fill_viridis(discrete=TRUE, name ="") +
-  labs(title = "Land Cover, 2011") +
-  mapTheme() +
-  theme(legend.direction="horizontal")
+We see below that of our 15,072 fishnet cells, 9,856 (65.4%) did not experience land cover change and 5,216 (34.6%) did experience land cover change. We believe that when training and testing our model, there is a relatively decent balance of non-developed and developed observations, which hopefully improve our true positive (predicts change correctly), true negative (predicts non-change correctly), and accuracy.
+
+```{r table}
+table(fishnet$lc_change)
 ```
 
+
 ```{r}
+## plot land use in 2011
+# ggplot() +
+#   geom_sf(data=nashville) +
+#   geom_raster(data=rast(lulc_clip) %>% na.omit %>% filter(value > 0), 
+#               aes(x,y,fill=as.factor(value))) +
+#   scale_fill_viridis(discrete=TRUE, name ="") +
+#   labs(title = "Land Cover, 2011") +
+#   mapTheme() +
+#   theme(legend.direction="horizontal")
+```
+
+### Land Use Reclassification
+
+Based on the 15 land class values, we reclassified them into 6 broader categories: *developed*, *forest*, *farm*, *wetlands*, *other undeveloped*, and *water*. These new categories are then re-aggregated into our fishnet so we can see the predominant land type of each.
+
+```{r reclass, warning=FALSE, message=FALSE}
 # landuse reclassification
 developed <- lulc_clip == 21 | lulc_clip == 22 | lulc_clip == 23 | lulc_clip == 24
 forest <- lulc_clip == 41 | lulc_clip == 42 | lulc_clip == 43 
@@ -297,11 +321,9 @@ names(farm) <- "farm"
 names(wetlands) <- "wetlands"
 names(otherUndeveloped) <- "otherUndeveloped"
 names(water) <- "water"
-
-
 ```
 
-```{r}
+```{r rster agg, warning=FALSE, message=FALSE}
 # aggregateRaster
 
 aggregateRaster <- function(inputRasterList, theFishnet) {
@@ -326,7 +348,30 @@ aggregateRaster <- function(inputRasterList, theFishnet) {
   }
   #output all aggregates as one large fishnet
    return(theseFishnets)
-  }
+}
+
+theRasterList <- c(developed,forest,farm,wetlands,otherUndeveloped,water)
+
+aggregatedRasters <-
+  aggregateRaster(theRasterList, Nashville_fishnet) %>%
+  dplyr::select(developed,forest,farm,wetlands,otherUndeveloped,water) %>%
+  mutate_if(is.numeric,as.factor)
+
+aggregatedRasters %>%
+  gather(var,value,developed:water) %>%
+  st_cast("POLYGON") %>%    #just to make sure no weird geometries slipped in
+  mutate(X = xyC(.)$x,
+         Y = xyC(.)$y) %>%
+  ggplot() +
+    geom_sf(data=nashville) +
+    geom_point(aes(X,Y, colour=as.factor(value))) +
+    facet_wrap(~var) +
+    scale_colour_manual(values = c("black", paletteQual[6]),
+                        labels=c("Other","Land Cover"),
+                        name = "") +
+    labs(title = "Land Cover Types, 2009",
+         subtitle = "As fishnet centroids") +
+   mapTheme()
 ```
 
 # Feature Aggregation
@@ -335,14 +380,17 @@ The following features have been added to our fishnet below, in addition to our 
 
 1. Total Population - American Community Survey (2011 and 2019)
 2. % of Occupied Housing Units - American Community Survey (2011 and 2019)
-3. Building Permit Applications - Open Data Nashville (2020 to 2023)
-...
+3. Count of Building Permit Applications - Open Data Nashville (2020 to 2023)
+4. Distance to Bus Stops - Open Data Nashville
+5. Distance to Interstate - Tigris
+6. Spatial Lag to Developed Areas
+7. Fixed Effect - Distance to Cropland
 
 ## Census Data
 
 We pulled two main variables from the census: total population and occupied housing units. We hypothesized that these were predictive of development, thus predictive of land use change. With a greater density of people and housing units, these areas are likely to grow. We gathered these variables at the census tract level.
 
-```{r}
+```{r access census, warning=FALSE, message=FALSE}
 census_api_key("3c896250ea8d421462ade754e4dcecdf8f55e0f2", overwrite = TRUE)
 
 nashvillePop2011 <- 
@@ -382,10 +430,10 @@ nashvillePop2019 <-
 
 First, we look at total population within each census tract in years 2011 and 2019.
 
-```{r, fig.width=12}
+```{r total pop, warning=FALSE, message=FALSE}
 grid.arrange(
 ggplot()+
-  geom_sf(data=nashvillePop2011, aes(fill=q5(totalPop2011)), color=NA) +
+  geom_sf(data=nashvillePop2011, aes(fill=q5(totalPop2011)), color="white") +
   scale_fill_manual(values=paletteMain,
                     labels=(qBr(nashvillePop2011, "totalPop2011")),
                     name="Population\nQuintiles")+
@@ -393,7 +441,7 @@ ggplot()+
        subtitle = "Davidson County Census Tracts")+
   mapTheme(),
 ggplot()+
-  geom_sf(data=nashvillePop2019, aes(fill=q5(totalPop2019)), color=NA) +
+  geom_sf(data=nashvillePop2019, aes(fill=q5(totalPop2019)), color="white") +
   scale_fill_manual(values=paletteMain,
                     labels=(qBr(nashvillePop2019, "totalPop2019")),
                     name="Population\nQuintiles")+
@@ -408,10 +456,10 @@ ncol=2
 
 Now, we visualize the total occupied housing units in each census tract.
 
-```{r, fig.width=12}
+```{r housing, warning=FALSE, message=FALSE}
 grid.arrange(
 ggplot()+
-  geom_sf(data=nashvillePop2011, aes(fill=q5(totalOccupied2011)), color=NA) +
+  geom_sf(data=nashvillePop2011, aes(fill=q5(totalOccupied2011)), color="white") +
   scale_fill_manual(values=paletteMain,
                     labels=(qB(nashvillePop2011, "totalOccupied2011")),
                     name="Housing Unit\nQuintiles")+
@@ -419,7 +467,7 @@ ggplot()+
        subtitle = "Davidson County Census Tracts")+
   mapTheme(),
 ggplot()+
-  geom_sf(data=nashvillePop2019, aes(fill=q5(totalOccupied2019)), color=NA) +
+  geom_sf(data=nashvillePop2019, aes(fill=q5(totalOccupied2019)), color="white") +
   scale_fill_manual(values=paletteMain,
                     labels=(qB(nashvillePop2019, "totalOccupied2019")),
                     name="Housing Unit\nQuintiles")+
@@ -434,7 +482,7 @@ ncol=2
 
 We aggregate all of the census features for each year into our fishnet grid, and visualize them within the fishnet, also including the total change in population and housing units for each grid below.
 
-```{r, fig.width=12}
+```{r cen to fish, warning=FALSE, message=FALSE, fig.width=10}
 fishnetPopulation11 <-
   st_interpolate_aw(nashvillePop2011["totalPop2011"], Nashville_fishnet, extensive=TRUE) %>%
   as.data.frame(.) %>%
@@ -522,17 +570,17 @@ ggplot()+
   scale_fill_manual(values=paletteMain,
                     labels=(qB(fishnetCensus, "housingChange")),
                     name="Quintiles")+
-  labs(title="Fishnet: Occupied Housing Units Change")+
+  labs(title="Fishnet: Housing Units Change")+
   mapTheme(),
 ncol=2
 )
 ```
 
-# Open Data Nashville
-
 ## Building Permit Applications
 
-```{r}
+Using the Open Data Nashville API, we were able to access a few indicators that we believed to predictive of urban growth. The first is building permit applications between the years of 2020 and 2023. Being able to look at the trend of building growth for the first few years of the 2020's, aggregate the count of permits per fishnet cell, and use it as a feature in our model, we believe it will have powerful importance to modeling growth for 2029. Areas that are experiencing higher volumes of building permit applications will likely continue to experience similar growth, and we believe there is a spatial effect to building development.
+
+```{r permits, warning=FALSE, message=FALSE}
 
 buildingPermits <- read.socrata(
   "https://data.nashville.gov/resource/kqff-rxj8.json",
@@ -549,14 +597,14 @@ buildingPermits <- st_as_sf(buildingPermits,
 buildingPermits <- buildingPermits %>% st_transform('ESRI:103527')
 
 ggplot()+
-  geom_sf(data=nashville, fill='grey', color='black', size=20)+
-  geom_sf(data=buildingPermits, alpha=0.4)+
+  geom_sf(data=nashville, fill='black', color='black', size=20)+
+  geom_sf(data=buildingPermits, color=paletteQual[6], alpha=0.4)+
   labs(title="Building Permit Requests",
        subtitle="Davidson County, TN (2020 to 2023)")+
   mapTheme()
 ```
 
-```{r}
+```{r fishnet permits,warning=FALSE, message=FALSE}
 fishnetPermits <-
   dplyr::select(buildingPermits) %>% 
   mutate(countPermits = 1) %>% 
@@ -577,38 +625,42 @@ ggplot()+
   geom_sf(data=fishnetPermits, aes(fill=as.numeric(countPermits)), color=NA)+
   scale_fill_viridis(option="G", direction=-1,
                      name="Count") +
-  labs(title="Fishnet: Count of Building Permits")+
+  labs(title="Fishnet: Count of Building Permits", subtitle="Davidson County, TN (2020 to 2023)")+
   mapTheme()
 
 ```
 
 
 ```{r}
-theRasterList <- c(developed,forest,farm,wetlands,otherUndeveloped,water)
-
-aggregatedRasters <-
-  aggregateRaster(theRasterList, Nashville_fishnet) %>%
-  dplyr::select(developed,forest,farm,wetlands,otherUndeveloped,water) %>%
-  mutate_if(is.numeric,as.factor)
-
-aggregatedRasters %>%
-  gather(var,value,developed:water) %>%
-  st_cast("POLYGON") %>%    #just to make sure no weird geometries slipped in
-  mutate(X = xyC(.)$x,
-         Y = xyC(.)$y) %>%
-  ggplot() +
-    geom_sf(data=nashville) +
-    geom_point(aes(X,Y, colour=as.factor(value))) +
-    facet_wrap(~var) +
-    scale_colour_manual(values = palette2,
-                        labels=c("Other","Land Cover"),
-                        name = "") +
-    labs(title = "Land Cover Types, 2001",
-         subtitle = "As fishnet centroids") +
-   mapTheme()
+# theRasterList <- c(developed,forest,farm,wetlands,otherUndeveloped,water)
+# 
+# aggregatedRasters <-
+#   aggregateRaster(theRasterList, Nashville_fishnet) %>%
+#   dplyr::select(developed,forest,farm,wetlands,otherUndeveloped,water) %>%
+#   mutate_if(is.numeric,as.factor)
+# 
+# aggregatedRasters %>%
+#   gather(var,value,developed:water) %>%
+#   st_cast("POLYGON") %>%    #just to make sure no weird geometries slipped in
+#   mutate(X = xyC(.)$x,
+#          Y = xyC(.)$y) %>%
+#   ggplot() +
+#     geom_sf(data=nashville) +
+#     geom_point(aes(X,Y, colour=as.factor(value))) +
+#     facet_wrap(~var) +
+#     scale_colour_manual(values = palette2,
+#                         labels=c("Other","Land Cover"),
+#                         name = "") +
+#     labs(title = "Land Cover Types, 2001",
+#          subtitle = "As fishnet centroids") +
+#    mapTheme()
 ```
 
-```{r}
+## Distance to Bus Stops
+
+Our second feature from Open Data Nashville was point location of bus stops, which we calculated distance to nearest bus stop of each fishnet cell. We hypothesized that bus stops are located in areas with higher ridership demand, and areas of higher ridership demand likely have a higher density of population and amenities necessary for travel, which will likely be developed land.
+
+```{r bus stops,  warning=FALSE, message=FALSE}
 ## install.packages("RSocrata")
 
 ##  Metropolitan Transit Authority Bus Routes and remove null
@@ -630,31 +682,37 @@ bus_stop_sf <- bus_stop %>%
 
 #plot 
 ggplot()+
-  geom_sf(data=nashville, fill='white', color='black')+
-  geom_sf(data=bus_stop_sf,color='purple')+
-  labs(title="Davidson County, Tennessee")+
+  geom_sf(data=nashville, fill='black', color='black')+
+  geom_sf(data=bus_stop_sf,color=paletteQual[6], size=1, alpha=0.5)+
+  labs(title="Bus Stops", subtitle="Davidson County, TN")+
   mapTheme()
 ##  bus_route_sf <- bus_route %>%
 ##    st_as_sf(wkt = "the_geom.corrdiantes", crs = 4326)
 
 ```
 
-```{r}
+Below, we see the bus stops plotted over the land use change map.
+
+```{r bus n class, warning=FALSE, message=FALSE}
 
 # plot stops with fishnet, do not know if it will work(see urban growth rmd)
 ggplot() +
   geom_point(data=fishnet, 
              aes(x=xyC(fishnet)[,1], y=xyC(fishnet)[,2],colour=lc_change),size=1.5) +
-  geom_sf(data=bus_stop_sf) +
-  scale_colour_manual(values = palette2,
-                      labels=c("No Change","New Development")) +
-  labs(title = "New Development and Bus stops",
-       subtitle = "As fishnet centroids") +
+  geom_sf(data=bus_stop_sf, color="red", alpha=0.5, size=0.5) +
+  scale_colour_manual(values = c("black", paletteQual[6]),
+                      labels=c("No Change","New Development"),
+                      name="Change Classification") +
+  labs(title = "Bus Stops and New Development",
+       subtitle = "Davidson County, TN",
+       caption = "Bus Stops in red") +
   mapTheme()
 
 ```
 
-```{r}
+Finally, we look at the distance quintiles below, with the bus stops overlain in red.
+
+```{r dist bus map, warning=FALSE, message=FALSE}
 # measure distance to nearest bus stop
 
 #emptyRaster <- lucc
@@ -663,7 +721,7 @@ ggplot() +
 lower_res_raster <- aggregate(lucc, fact = 5) 
 lower_res_raster[] <- NA
 
-bus_sf_geo_only <- bus_stop_sf %>% select(geometry)# remove all the columns except for geometry (or will be error in rasterize step)
+bus_sf_geo_only <- bus_stop_sf %>% dplyr::select(geometry)# remove all the columns except for geometry (or will be error in rasterize step)
 
 bus_stop_raster <- 
   as(bus_sf_geo_only,'Spatial') %>%
@@ -686,19 +744,72 @@ ggplot() +
   geom_point(data=busstop_Points_fishnet, aes(x=xyC(busstop_Points_fishnet)[,1], 
                                              y=xyC(busstop_Points_fishnet)[,2], 
                  colour=factor(ntile(distance_stops,5))),size=1.5) +
-  scale_colour_manual(values = palette5,
+  scale_colour_manual(values = paletteMain,
                       labels=substr(quintileBreaks(busstop_Points_fishnet,"distance_stops"),1,8),
                       name="Quintile\nBreaks") +
-  geom_sf(data=bus_stop_sf, colour = "red") +
-  labs(title = "Distance to Bus stops",
-       subtitle = "As fishnet centroids; Bus stops visualized in red") +
+  geom_sf(data=bus_stop_sf, colour = "red", alpha=0.5, size=0.5) +
+  labs(title = "Distance to Bus Stops",
+       subtitle = "Bus stops visualized in red") +
   mapTheme()
 ```
 
+## Distance to Interstate
 
-## spatial lag
+Another distance-based classification we did was distance to interstates. We accessed interstate data from the Tigris package in R. We hypothesized new development may occur in areas with closer proximity to the interstate due to ease of accessibility. We first visualize interstates below.
 
-```{r}
+```{r int, warning=FALSE, message=FALSE}
+nashvilleInterstate <- roads("TN", "Davidson") %>%
+  dplyr::filter(RTTYP %in% "I") %>%
+  st_transform("ESRI:103527")
+
+ggplot()+
+  geom_sf(data=nashville)+
+  geom_sf(data=nashvilleInterstate)+
+  labs(title="Interstates", subtitle="Davidson County, TN")+
+  mapTheme()
+```
+
+We aggregate the intersection of each interstate into the fishnet and calculate the distance to nearest interstate for each fishnet cell. Quintile distances are shown below.
+
+```{r int fish, warning=FALSE, message=FALSE}
+fishnetInterstate <- fishnet %>%
+ mutate(uniqueID = as.character(row_number()))
+
+fishnet_centroid <- fishnetInterstate %>%
+ st_centroid()
+
+interstateDist <- fishnet_centroid %>%
+ st_distance(nashvilleInterstate %>%
+ st_transform(st_crs(fishnet_centroid))) %>%
+ as.data.frame() %>%
+ mutate(uniqueID = as.character(row_number())) %>%
+ gather(-uniqueID, key = "variable", value = "value") %>%
+  dplyr::select(-variable) %>%
+  group_by(uniqueID) %>%
+ summarize(interstateDist = min(value))
+
+interstateDist$interstateDist <- as.numeric(gsub("\\[US_survey_foot\\]", "", interstateDist$interstateDist))
+
+fishnet <- left_join(fishnetInterstate, interstateDist)
+
+ggplot() +
+  geom_point(data=fishnet, aes(x=xyC(fishnet)[,1], 
+                                y=xyC(fishnet)[,2], 
+                 colour=factor(ntile(interstateDist,5))),size=1.5) +
+  scale_colour_manual(values = paletteMain,
+                      labels=substr(quintileBreaks(interstateDist,"interstateDist"),1,8),
+                      name="Quintile\nBreaks") +
+  geom_sf(data=nashvilleInterstate, colour = "red") +
+  labs(title = "Distance to Interstates",
+       subtitle = "Interstates visualized in red") +
+  mapTheme()
+```
+
+## Spatial Lag to Development
+
+Another feature we hypothesized is the spatial lag to already developed fishnets. We believe that as areas within the county grow, for the sake of creating continuous developed space, new development will be a function of current development. 
+
+```{r spatial lag, warning=FALSE, message=FALSE}
 #define function
 nn_function <- function(measureFrom,measureTo,k) {
   #convert the sf layers to matrices
@@ -727,22 +838,35 @@ fishnet$lagDevelopment <-
                 xyC(filter(aggregatedRasters,developed==1)),
                 2)
 
+# ggplot() +
+#   geom_sf(data=nashville) +
+#   geom_point(data=fishnet, 
+#              aes(x=xyC(fishnet)[,1], y=xyC(fishnet)[,2], 
+#                  colour=factor(ntile(lagDevelopment,5))), size=1.5) +
+#   scale_colour_manual(values = paletteMain,
+#                      labels=substr(quintileBreaks(fishnet,"lagDevelopment"),1,7),
+#                      name="Quintile\nBreaks") +
+#   labs(title = "Spatial Lag to 2001 Development",
+#        subtitle = "As fishnet centroids") +
+#   mapTheme()
+
 ggplot() +
   geom_sf(data=nashville) +
   geom_point(data=fishnet, 
-             aes(x=xyC(fishnet)[,1], y=xyC(fishnet)[,2], 
-                 colour=factor(ntile(lagDevelopment,5))), size=1.5) +
-  scale_colour_manual(values = palette5,
-                     labels=substr(quintileBreaks(fishnet,"lagDevelopment"),1,7),
-                     name="Quintile\nBreaks") +
-  labs(title = "Spatial Lag to 2001 Development",
+             aes(x=xyC(fishnet)[,1], 
+                 y=xyC(fishnet)[,2], 
+                 colour=lagDevelopment)) +
+  scale_colour_viridis(option="G", direction=-1, name="Distance") +
+  labs(title = "Spatial Lag to Development",
        subtitle = "As fishnet centroids") +
   mapTheme()
 ``` 
-## fixed effect - cropland
-```{r}
 
+## Fixed Effect - Cropland
 
+Our final feature is a fixed effect, distance to croplands. This is another example of how distance to a certain land type may be useful to understand development patterns.
+
+```{r crops, warning=FALSE, message=FALSE}
 crop_VALUE1 <- 81
 crop_VALUE2 <- 82
 
@@ -777,12 +901,45 @@ ggplot() +
   geom_point(data=cropland_Points_fishnet, aes(x=xyC(cropland_Points_fishnet)[,1], 
                                              y=xyC(cropland_Points_fishnet)[,2], 
                  colour=factor(ntile(distance_croplands, 5))), size=1.5) +
-  scale_colour_manual(values = palette5,
+  scale_colour_manual(values = paletteMain,
                       labels=substr(quintileBreaks(cropland_Points_fishnet, "distance_croplands"), 1, 8),
                       name="Quintile\nBreaks") +
 #  geom_raster(data=cropland_raster, aes(x, y, fill=as.factor(value)), alpha=0.5) + # Add the cropland raster to the plot
   labs(title = "Distance to Croplands",
-       subtitle = "As fishnet centroids; Croplands visualized in red") +
+       subtitle = "As fishnet centroids") +
   mapTheme()
+```
+
+## Final Fishnet
+```{r}
+# fishnet has interstate distance and spatial lag of development
+# needs all of the census variables, distance to bus stop, fixed effects, building permit apps
+
+dat <- 
+  cbind(
+    fishnet, aggregatedRasters, fishnetCensus, fishnetPermits, busstop_Points_fishnet, cropland_Points_fishnet) %>%
+  dplyr::select(lc_change, 
+                developed, 
+                forest, 
+                farm, 
+                wetlands, 
+                otherUndeveloped,
+                water,
+                interstateDist,
+                lagDevelopment,
+                totalPop2011,
+                totalPop2019,
+                totalOccupied2011,
+                totalOccupied2019,
+                popChange,
+                housingChange,
+                countPermits,
+                distance_stops,
+                distance_croplands) %>%
+  mutate(developed10 = ifelse(lc_change == 1 & developed == 1, 0, developed)) %>%
+  filter(water == 0) 
+
+fishnet2 <- st_intersection(fishnet, fishnetCensus, left=TRUE)
+#fishnet <- st_join(busstop_Points_fishnet, fishnet)
 ```
 
