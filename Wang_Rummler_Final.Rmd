@@ -644,7 +644,7 @@ ggplot() +
   geom_sf(data=bus_stop_sf) +
   scale_colour_manual(values = palette2,
                       labels=c("No Change","New Development")) +
-  labs(title = "New Development and Highways",
+  labs(title = "New Development and Bus stops",
        subtitle = "As fishnet centroids") +
   mapTheme
 
@@ -653,12 +653,17 @@ ggplot() +
 ```{r}
 # measure distance to nearest bus stop
 
-emptyRaster <- lucc
-emptyRaster[] <- NA
+#emptyRaster <- lucc
+#emptyRaster[] <- NA
+# number coule be desired factor to reduce resolution
+lower_res_raster <- aggregate(lucc, fact = 5) 
+lower_res_raster[] <- NA
+
+bus_sf_geo_only <- bus_stop_sf %>% select(geometry)# remove all the columns except for geometry (or will be error in rasterize step)
 
 bus_stop_raster <- 
-  as(bus_stop_sf,'Spatial') %>%
-  rasterize(.,emptyRaster)
+  as(bus_sf_geo_only,'Spatial') %>%
+  rasterize(.,lower_res_raster)
 
 bus_stop_distance <- distance(bus_stop_raster)
 names(bus_stop_distance) <- "distance_stops"
@@ -681,8 +686,8 @@ ggplot() +
                       labels=substr(quintileBreaks(busstop_Points_fishnet,"distance_stops"),1,8),
                       name="Quintile\nBreaks") +
   geom_sf(data=bus_stop_sf, colour = "red") +
-  labs(title = "Distance to Highways",
-       subtitle = "As fishnet centroids; Highways visualized in red") +
+  labs(title = "Distance to Bus stops",
+       subtitle = "As fishnet centroids; Bus stops visualized in red") +
   mapTheme
 ```
 
