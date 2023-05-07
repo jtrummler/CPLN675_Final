@@ -639,8 +639,8 @@ ggplot()+
 
 # plot stops with fishnet, do not know if it will work(see urban growth rmd)
 ggplot() +
-  geom_point(data=Nashville_fishnet, 
-             aes(x=xyC(Nashville_fishnet)[,1], y=xyC(Nashville_fishnet)[,2],colour=lc_change),size=1.5) +
+  geom_point(data=fishnet, 
+             aes(x=xyC(fishnet)[,1], y=xyC(fishnet)[,2],colour=lc_change),size=1.5) +
   geom_sf(data=bus_stop_sf) +
   scale_colour_manual(values = palette2,
                       labels=c("No Change","New Development")) +
