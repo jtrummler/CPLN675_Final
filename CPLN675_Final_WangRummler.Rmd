@@ -132,8 +132,10 @@ ggplot() +
 ```{r}
 #NLCD LULC & LUCC
 
-lucc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/nlcd_lucc_clip.tif")
-lulc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/nlcd_lulc_clip.tif")
+#lucc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/nlcd_lucc_clip.tif")
+#lulc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/nlcd_lulc_clip.tif")
+lucc_input <- raster("C:/Users/79038/Documents/GitHub/warehouseii/nlcd_lucc_clip.tif")
+lulc_input <- raster("C:/Users/79038/Documents/GitHub/warehouseii/nlcd_lulc_clip.tif")
 plot(lucc_input)
 
 lucc_clip <- mask(lucc_input, nashville)
@@ -322,9 +324,9 @@ ggplot()+
 
 # plot stops with fishnet, do not know if it will work(see urban growth rmd)
 ggplot() +
-  geom_point(data=Nashville_fishnet, 
-             aes(x=xyC(Nashville_fishnet)[,1], y=xyC(Nashville_fishnet)[,2],colour=lc_change),size=1.5) +
-  geom_sf(data=bus_stop_sf) +
+  geom_point(data=fishnet, 
+             aes(x=xyC(fishnet)[,1], y=xyC(fishnet)[,2],colour=lc_change),size=1.5) +
+  geom_sf(data=bus_stop_sf, color = "pink", size = 0.5) +
   scale_colour_manual(values = palette2,
                       labels=c("No Change","New Development")) +
   labs(title = "New Development and Highways",
@@ -336,12 +338,17 @@ ggplot() +
 ```{r}
 # measure distance to nearest bus stop
 
-emptyRaster <- lucc
-emptyRaster[] <- NA
+#emptyRaster <- lucc
+#emptyRaster[] <- NA
+# number coule be desired factor to reduce resolution
+lower_res_raster <- aggregate(lucc, fact = 5) 
+lower_res_raster[] <- NA
+
+bus_sf_geo_only <- bus_stop_sf %>% select(geometry)# remove all the columns except for geometry (or will be error in rasterize step)
 
 bus_stop_raster <- 
-  as(bus_stop_sf,'Spatial') %>%
-  rasterize(.,emptyRaster)
+  as(bus_sf_geo_only,'Spatial') %>%
+  rasterize(.,lower_res_raster)
 
 bus_stop_distance <- distance(bus_stop_raster)
 names(bus_stop_distance) <- "distance_stops"
@@ -364,8 +371,8 @@ ggplot() +
                       labels=substr(quintileBreaks(busstop_Points_fishnet,"distance_stops"),1,8),
                       name="Quintile\nBreaks") +
   geom_sf(data=bus_stop_sf, colour = "red") +
-  labs(title = "Distance to Highways",
-       subtitle = "As fishnet centroids; Highways visualized in red") +
+  labs(title = "Distance to Bus stops",
+       subtitle = "As fishnet centroids; Bus stops visualized in red") +
   mapTheme
 ```
 
