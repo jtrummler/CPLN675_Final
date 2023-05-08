@@ -129,7 +129,7 @@ nashville <- tennessee %>%
 
 ggplot()+
   geom_sf(data=tennessee, fill='grey', color='black')+
-  geom_sf(data=nashville, fill='red', color='red')+
+  geom_sf(data=nashville, fill=palette2[1], color='black')+
   labs(title="Nashville MSA")+
   mapTheme()
 ```
@@ -170,39 +170,39 @@ Nashville_fishnet <-
 # plot
 ggplot() +
   geom_sf(data=Nashville_fishnet) +
-  labs(title="Fishnet, 4000 Feet Resolution", subtitle="Nashville MSA") +
+  geom_sf(data=nashville, fill="transparent", color="red")+
+  labs(title="Fishnet, 4500 Feet Resolution", subtitle="Nashville MSA") +
   mapTheme()
 ```
 
 ## Land Use Change
 
-We retrieve land use change data from USGS National Land Cover Database, which can be found [here](https://www.mrlc.gov/data/nlcd-land-cover-change-index-conus). Particularly, we are looking at the change between 2009 and 2019. The land cover change data has 30 meter resolution, so we take the centroids of each hexbin and compare it to the land cover type to downsample the data, making it as accurate and computationally runnable as possible.
+We retrieve land use change data from USGS National Land Cover Database, which can be found [here](https://www.mrlc.gov/data/nlcd-land-cover-change-index-conus). Particularly, we are looking at the change between 2009 and 2019. The land cover change data has 30 meter resolution, so we take the centroids of each fishnet cell and compare it to the land cover type to downsample the data, making it as accurate and computationally runnable as possible.
 
 We reclassified the data into several different overarching types to build as features into our model, and use the land cover change between the 2 years as our dependent variable (0 = unchanged, 1 = changed).
 
-### Land Cover - 2009
-
-First, we look at the land cover in the year 2009.
-
 ```{r landcover,  warning=FALSE, message=FALSE}
 #NLCD LULC & LUCC
+lulc11 <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/lulc2011pr.tif")
+lulc19 <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/lulc2019pr.tif")
+lucc <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/luccmsa_11_19.tif")
 
-lucc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/LUCC_2019_11.tif")
-lulc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/nlcd_lulc_clip.tif")
 #plot(lucc_input)
-
-lucc_clip <- mask(lucc_input, nashville)
-lulc_clip <- mask(lulc_input, nashville)
+lulc11_clip <- mask(lulc11, nashville)
+lulc19_clip <- mask(lulc19, nashville)
+lucc_clip <- mask(lucc, nashville)
+# lucc_clip <- mask(lucc_input, nashville)
+# lulc_clip <- mask(lulc_input, nashville)
 
 #plot lulc
-ggplot() +
-  geom_sf(data=nashville) +
-  geom_raster(data=rast(lulc_clip) %>% na.omit %>% filter(value > 0), 
-              aes(x,y,fill=as.factor(value))) +
-  labs(title = "Land Cover (2009)", subtitle="Nashville MSA") +
-  scale_fill_manual(values=c(paletteQual), name="Land\nCover\nType")+
-  mapTheme() +
-  theme(legend.position="bottom")
+# ggplot() +
+  # geom_sf(data=nashville) +
+  # geom_raster(data=rast(lulc11_clip) %>% na.omit %>% filter(value > 0), 
+  #             aes(x,y,fill=as.factor(value))) +
+  # labs(title = "Land Cover (2011)", subtitle="Nashville MSA") +
+  # scale_fill_manual(values=c(paletteQual), name="Land\nCover\nType")+
+  # mapTheme() +
+  # theme(legend.position="bottom")
 ```
 
 ### Land Cover Change - 2009 to 2019
@@ -212,11 +212,11 @@ We compare the land cover in 2009 and 2019, and map below the areas that changed
 ```{r land change, warning=FALSE, message=FALSE}
 #plot lucc
 ggplot() +
-  geom_sf(data=nashville, fill="black") +
+  geom_sf(data=nashville, fill="black", color="white") +
   geom_raster(data=rast(lucc_clip) %>% na.omit %>% filter(value > 0), 
               aes(x,y,fill=as.factor(value))) +
   scale_fill_manual(values=c(paletteQual), name="Land Cover Type")+
-  labs(title = "Land Cover Change (2009 to 2019)", subtitle="Nashville MSA") +
+  labs(title = "Land Cover Change (2011 to 2019)", subtitle="Nashville MSA") +
   mapTheme() +
   theme(legend.position="bottom")
 ```
@@ -273,7 +273,7 @@ ggplot() +
   geom_sf(data=nashville) +
   geom_point(data=fishnet, 
              aes(x=xyC(fishnet)$x, y=xyC(fishnet)$y, colour=lc_change)) +
-  scale_colour_manual(values = c("black", paletteQual[6]),
+  scale_colour_manual(values = c(palette2),
                       labels=c("No Change","New Development"),
                       name = "") +
   labs(title = "Land Cover Development Change", subtitle = "As fishnet centroids") +
@@ -301,16 +301,16 @@ table(fishnet$lc_change)
 
 ### Land Use Reclassification
 
-Based on the 15 land class values, we reclassified them into 6 broader categories: *developed*, *forest*, *farm*, *wetlands*, *other undeveloped*, and *water*. These new categories are then re-aggregated into our fishnet so we can see the predominant land type of each.
+Based on the 15 land class values, we reclassified them into 6 broader categories: *developed*, *forest*, *farm*, *wetlands*, *other undeveloped*, and *water*. These new categories are then re-aggregated into our fishnet so we can see the predominant land type of each. 
 
 ```{r reclass, warning=FALSE, message=FALSE}
 # landuse reclassification
-developed <- lulc_clip == 21 | lulc_clip == 22 | lulc_clip == 23 | lulc_clip == 24
-forest <- lulc_clip == 41 | lulc_clip == 42 | lulc_clip == 43 
-farm <- lulc_clip == 81 | lulc_clip == 82 
-wetlands <- lulc_clip == 90 | lulc_clip == 95 
-otherUndeveloped <- lulc_clip == 52 | lulc_clip == 71 | lulc_clip == 31 
-water <- lulc_clip == 11
+developed <- lulc11_clip == 21 | lulc11_clip == 22 | lulc11_clip == 23 | lulc11_clip == 24
+forest <- lulc11_clip == 41 | lulc11_clip == 42 | lulc11_clip == 43 
+farm <- lulc11_clip == 81 | lulc11_clip == 82 
+wetlands <- lulc11_clip == 90 | lulc11_clip == 95 
+otherUndeveloped <- lulc11_clip == 52 | lulc11_clip == 71 | lulc11_clip == 31 
+water <- lulc11_clip == 11
 
 names(developed) <- "developed"
 names(forest) <- "forest"
@@ -363,10 +363,10 @@ aggregatedRasters %>%
   geom_sf(data=nashville) +
   geom_point(aes(X,Y, colour=as.factor(value))) +
   facet_wrap(~var) +
-  scale_colour_manual(values = c("black", paletteQual[6]),
+  scale_colour_manual(values = c(palette2),
                       labels=c("Other","Land Cover"),
                       name = "") +
-  labs(title = "Land Cover Types, 2009",
+  labs(title = "Land Cover Types, 2011",
        subtitle = "As fishnet centroids") +
   mapTheme()
 ```
@@ -380,6 +380,7 @@ The following features have been added to our fishnet below, in addition to our 
 3. Distance to Interstates - Tigris
 4. Spatial Lag to Developed Areas
 5. Fixed Effect - Distance to Cropland
+6. Distance to Bus Stops
 
 ## Census Data
 
@@ -572,33 +573,6 @@ grid.arrange(
 ```
 
 
-```{r fishnet permits,warning=FALSE, message=FALSE}
-fishnetPermits <-
-  dplyr::select(buildingPermits) %>% 
-  mutate(countPermits = 1) %>% 
-  aggregate(., Nashville_fishnet, sum) %>%
-  as.data.frame(.) %>%
-  rownames_to_column(var = "fishnetID") %>%
-  left_join(Nashville_fishnet %>%
-              mutate(fishnetID = as.character(fishnetID)),
-            ., by=c("fishnetID"='fishnetID')) %>% 
-  dplyr::select(countPermits)
-
-fishnetPermits$countPermits <- ifelse(is.na(fishnetPermits$countPermits), 0, fishnetPermits$countPermits)
-
-colorRampMain <- colorRampPalette(paletteMain)
-colorRampMain5 <- colorRampMain(5)
-
-ggplot()+
-  geom_sf(data=fishnetPermits, aes(fill=as.numeric(countPermits)), color=NA)+
-  scale_fill_viridis(option="G", direction=-1,
-                     name="Count") +
-  labs(title="Fishnet: Count of Building Permits", subtitle="Nashville MSA (2020 to 2023)")+
-  mapTheme()
-
-```
-
-
 ```{r}
 # theRasterList <- c(developed,forest,farm,wetlands,otherUndeveloped,water)
 # 
@@ -748,7 +722,7 @@ keep_values <- function(x) {
 }
 
 # Apply the function to the original raster
-cropland_raster <- calc(lulc_clip, keep_values)
+cropland_raster <- calc(lulc11_clip, keep_values)
 
 #cropland_raster <- aggregate(lulc_clip, fact = 5) 
 cropland_raster <- mask(cropland_raster, nashville)
