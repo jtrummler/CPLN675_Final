@@ -125,11 +125,11 @@ tennessee <- counties("TN") # county via tigris
 nashville <- tennessee %>%
   dplyr::filter(NAMELSAD%in%c("Cheatham County", "Davidson County", "Dickson County", "Macon County", "Robertson County", "Rutherford County", "Smith County", "Sumner County", "Trousdale County", "Williamson County", "Wilson County", "Maury County", "Cannon County"
 ))%>%
-  st_transform('ESRI:103527')
+  st_transform(crs = 2274)
 
 ggplot()+
   geom_sf(data=tennessee, fill='grey', color='black')+
-  geom_sf(data=nashville, fill=palette2[1], color='black')+
+  geom_sf(data=nashville, fill='red', color='red')+
   labs(title="Nashville MSA")+
   mapTheme()
 ```
@@ -170,39 +170,44 @@ Nashville_fishnet <-
 # plot
 ggplot() +
   geom_sf(data=Nashville_fishnet) +
-  geom_sf(data=nashville, fill="transparent", color="red")+
-  labs(title="Fishnet, 4500 Feet Resolution", subtitle="Nashville MSA") +
+  labs(title="Fishnet, 4000 Feet Resolution", subtitle="Nashville MSA") +
   mapTheme()
 ```
 
 ## Land Use Change
 
-We retrieve land use change data from USGS National Land Cover Database, which can be found [here](https://www.mrlc.gov/data/nlcd-land-cover-change-index-conus). Particularly, we are looking at the change between 2009 and 2019. The land cover change data has 30 meter resolution, so we take the centroids of each fishnet cell and compare it to the land cover type to downsample the data, making it as accurate and computationally runnable as possible.
+We retrieve land use change data from USGS National Land Cover Database, which can be found [here](https://www.mrlc.gov/data/nlcd-land-cover-change-index-conus). Particularly, we are looking at the change between 2009 and 2019. The land cover change data has 30 meter resolution, so we take the centroids of each hexbin and compare it to the land cover type to downsample the data, making it as accurate and computationally runnable as possible.
 
 We reclassified the data into several different overarching types to build as features into our model, and use the land cover change between the 2 years as our dependent variable (0 = unchanged, 1 = changed).
 
+### Land Cover - 2009
+
+First, we look at the land cover in the year 2009.
+
 ```{r landcover,  warning=FALSE, message=FALSE}
 #NLCD LULC & LUCC
-lulc11 <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/lulc2011pr.tif")
-lulc19 <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/lulc2019pr.tif")
-lucc <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/luccmsa_11_19.tif")
 
+lucc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/final/luccmsa_resample.tif")
+lulc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/final/lulc11f2p_Resample.tif")
 #plot(lucc_input)
-lulc11_clip <- mask(lulc11, nashville)
-lulc19_clip <- mask(lulc19, nashville)
-lucc_clip <- mask(lucc, nashville)
-# lucc_clip <- mask(lucc_input, nashville)
-# lulc_clip <- mask(lulc_input, nashville)
+
+#lucc_clip_raw <- projectRaster(lucc_input, crs = 2274)
+#lulc_clip_raw <- projectRaster(lulc_input, crs = 2274)
+lucc_clip <- mask(lucc_input, nashville)
+lulc_clip <- mask(lulc_input, nashville)
+#lucc_clip <- aggregate(lucc_clip0, fact = 3)
+#lulc_clip <- aggregate(lulc_clip0, fact = 3)
+
 
 #plot lulc
-# ggplot() +
-  # geom_sf(data=nashville) +
-  # geom_raster(data=rast(lulc11_clip) %>% na.omit %>% filter(value > 0), 
-  #             aes(x,y,fill=as.factor(value))) +
-  # labs(title = "Land Cover (2011)", subtitle="Nashville MSA") +
-  # scale_fill_manual(values=c(paletteQual), name="Land\nCover\nType")+
-  # mapTheme() +
-  # theme(legend.position="bottom")
+ggplot() +
+  geom_sf(data=nashville) +
+  geom_raster(data=rast(lulc_clip) %>% na.omit %>% filter(value > 0), 
+              aes(x,y,fill=as.factor(value))) +
+  labs(title = "Land Cover (2009)", subtitle="Nashville MSA") +
+  scale_fill_manual(values=c(paletteQual), name="Land\nCover\nType")+
+  mapTheme() +
+  theme(legend.position="bottom")
 ```
 
 ### Land Cover Change - 2009 to 2019
@@ -212,11 +217,11 @@ We compare the land cover in 2009 and 2019, and map below the areas that changed
 ```{r land change, warning=FALSE, message=FALSE}
 #plot lucc
 ggplot() +
-  geom_sf(data=nashville, fill="black", color="white") +
+  geom_sf(data=nashville, fill="black") +
   geom_raster(data=rast(lucc_clip) %>% na.omit %>% filter(value > 0), 
               aes(x,y,fill=as.factor(value))) +
   scale_fill_manual(values=c(paletteQual), name="Land Cover Type")+
-  labs(title = "Land Cover Change (2011 to 2019)", subtitle="Nashville MSA") +
+  labs(title = "Land Cover Change (2009 to 2019)", subtitle="Nashville MSA") +
   mapTheme() +
   theme(legend.position="bottom")
 ```
@@ -226,6 +231,8 @@ ggplot() +
 We also complete a reclassification matrix to feed into our land use change data to designate land type values of undeveloped to 0 and developed to 1. We then plot the change below, where values of 1 are in the teal color.
 
 ```{r reclass, warning=FALSE, message=FALSE}
+
+
 #reclass matrix 
 reclassMatrix <- 
   matrix(c(
@@ -273,7 +280,7 @@ ggplot() +
   geom_sf(data=nashville) +
   geom_point(data=fishnet, 
              aes(x=xyC(fishnet)$x, y=xyC(fishnet)$y, colour=lc_change)) +
-  scale_colour_manual(values = c(palette2),
+  scale_colour_manual(values = c("black", paletteQual[6]),
                       labels=c("No Change","New Development"),
                       name = "") +
   labs(title = "Land Cover Development Change", subtitle = "As fishnet centroids") +
@@ -301,16 +308,17 @@ table(fishnet$lc_change)
 
 ### Land Use Reclassification
 
-Based on the 15 land class values, we reclassified them into 6 broader categories: *developed*, *forest*, *farm*, *wetlands*, *other undeveloped*, and *water*. These new categories are then re-aggregated into our fishnet so we can see the predominant land type of each. 
+Based on the 15 land class values, we reclassified them into 6 broader categories: *developed*, *forest*, *farm*, *wetlands*, *other undeveloped*, and *water*. These new categories are then re-aggregated into our fishnet so we can see the predominant land type of each.
 
 ```{r reclass, warning=FALSE, message=FALSE}
 # landuse reclassification
-developed <- lulc11_clip == 21 | lulc11_clip == 22 | lulc11_clip == 23 | lulc11_clip == 24
-forest <- lulc11_clip == 41 | lulc11_clip == 42 | lulc11_clip == 43 
-farm <- lulc11_clip == 81 | lulc11_clip == 82 
-wetlands <- lulc11_clip == 90 | lulc11_clip == 95 
-otherUndeveloped <- lulc11_clip == 52 | lulc11_clip == 71 | lulc11_clip == 31 
-water <- lulc11_clip == 11
+lulc_clip <- aggregate(lulc_clip, fact = 2)
+developed <- lulc_clip == 21 | lulc_clip == 22 | lulc_clip == 23 | lulc_clip == 24
+forest <- lulc_clip == 41 | lulc_clip == 42 | lulc_clip == 43 
+farm <- lulc_clip == 81 | lulc_clip == 82 
+wetlands <- lulc_clip == 90 | lulc_clip == 95 
+otherUndeveloped <- lulc_clip == 52 | lulc_clip == 71 | lulc_clip == 31 
+water <- lulc_clip == 11
 
 names(developed) <- "developed"
 names(forest) <- "forest"
@@ -323,29 +331,30 @@ names(water) <- "water"
 ```{r rster agg, warning=FALSE, message=FALSE}
 # aggregateRaster
 
+
 aggregateRaster <- function(inputRasterList, theFishnet) {
   #create an empty fishnet with the same dimensions as the input fishnet
   theseFishnets <- theFishnet %>% dplyr::select()
   #for each raster in the raster list
   for (i in inputRasterList) {
-    #create a variable name corresponding to the ith raster
-    varName <- names(i)
-    #convert raster to points as an sf
+  #create a variable name corresponding to the ith raster
+  varName <- names(i)
+  #convert raster to points as an sf
     thesePoints <-
       rasterToPoints(i) %>%
       as.data.frame() %>%
       st_as_sf(coords = c("x", "y"), crs = st_crs(theFishnet)) %>%
       filter(.[[1]] == 1)
-    #aggregate to the fishnet
+  #aggregate to the fishnet
     thisFishnet <-
       aggregate(thesePoints, theFishnet, length) %>%
       mutate(!!varName := ifelse(is.na(.[[1]]),0,1))
-    #add to the larger fishnet
+  #add to the larger fishnet
     theseFishnets <- cbind(theseFishnets,thisFishnet)
   }
   #output all aggregates as one large fishnet
-  return(theseFishnets)
-}
+   return(theseFishnets)
+  }
 
 theRasterList <- c(developed,forest,farm,wetlands,otherUndeveloped,water)
 
@@ -360,15 +369,15 @@ aggregatedRasters %>%
   mutate(X = xyC(.)$x,
          Y = xyC(.)$y) %>%
   ggplot() +
-  geom_sf(data=nashville) +
-  geom_point(aes(X,Y, colour=as.factor(value))) +
-  facet_wrap(~var) +
-  scale_colour_manual(values = c(palette2),
-                      labels=c("Other","Land Cover"),
-                      name = "") +
-  labs(title = "Land Cover Types, 2011",
-       subtitle = "As fishnet centroids") +
-  mapTheme()
+    geom_sf(data=nashville) +
+    geom_point(aes(X,Y, colour=as.factor(value))) +
+    facet_wrap(~var) +
+    scale_colour_manual(values = palette2,
+                        labels=c("Other","Land Cover"),
+                        name = "") +
+    labs(title = "Land Cover Types, 2001",
+         subtitle = "As fishnet centroids") +
+   mapTheme()
 ```
 
 # Feature Aggregation
@@ -380,7 +389,6 @@ The following features have been added to our fishnet below, in addition to our 
 3. Distance to Interstates - Tigris
 4. Spatial Lag to Developed Areas
 5. Fixed Effect - Distance to Cropland
-6. Distance to Bus Stops
 
 ## Census Data
 
@@ -403,7 +411,7 @@ nashvillePop2011 <-
          totalOccupied2011 = B25002_002E
   ) %>%
   dplyr::select(-c("B01001_001M", "B25002_002M")) %>%
-  st_transform('ESRI:103527')
+  st_transform(crs = 2274)
 
 nashvillePop2019 <- 
   get_acs(geography = "tract", 
@@ -419,7 +427,7 @@ nashvillePop2019 <-
          totalOccupied2019 = B25002_002E
   ) %>%
   dplyr::select(-c("B01001_001M", "B25002_002M")) %>%
-  st_transform('ESRI:103527')
+  st_transform(crs = 2274)
 ```
 
 ### Total Populaion - 2011 vs. 2019
@@ -573,6 +581,33 @@ grid.arrange(
 ```
 
 
+```{r fishnet permits,warning=FALSE, message=FALSE}
+fishnetPermits <-
+  dplyr::select(buildingPermits) %>% 
+  mutate(countPermits = 1) %>% 
+  aggregate(., Nashville_fishnet, sum) %>%
+  as.data.frame(.) %>%
+  rownames_to_column(var = "fishnetID") %>%
+  left_join(Nashville_fishnet %>%
+              mutate(fishnetID = as.character(fishnetID)),
+            ., by=c("fishnetID"='fishnetID')) %>% 
+  dplyr::select(countPermits)
+
+fishnetPermits$countPermits <- ifelse(is.na(fishnetPermits$countPermits), 0, fishnetPermits$countPermits)
+
+colorRampMain <- colorRampPalette(paletteMain)
+colorRampMain5 <- colorRampMain(5)
+
+ggplot()+
+  geom_sf(data=fishnetPermits, aes(fill=as.numeric(countPermits)), color=NA)+
+  scale_fill_viridis(option="G", direction=-1,
+                     name="Count") +
+  labs(title="Fishnet: Count of Building Permits", subtitle="Nashville MSA (2020 to 2023)")+
+  mapTheme()
+
+```
+
+
 ```{r}
 # theRasterList <- c(developed,forest,farm,wetlands,otherUndeveloped,water)
 # 
@@ -605,7 +640,7 @@ Another distance-based classification we did was distance to interstates. We acc
 ```{r int, warning=FALSE, message=FALSE}
 nashvilleInterstate <- roads("TN", c("Cheatham", "Davidson", "Dickson", "Macon", "Robertson", "Rutherford", "Smith", "Sumner", "Trousdale", "Williamson", "Wilson", "Maury", "Cannon")) %>%
   dplyr::filter(RTTYP %in% "I") %>%
-  st_transform("ESRI:103527")
+  st_transform(crs = 2274)
 
 ggplot()+
   geom_sf(data=nashville, fill="black", color="white")+
@@ -722,11 +757,11 @@ keep_values <- function(x) {
 }
 
 # Apply the function to the original raster
-cropland_raster <- calc(lulc11_clip, keep_values)
+cropland_raster <- calc(lulc_clip, keep_values)
 
 #cropland_raster <- aggregate(lulc_clip, fact = 5) 
 cropland_raster <- mask(cropland_raster, nashville)
-cropland_raster <- aggregate(cropland_raster, fact = 5) 
+cropland_raster <- aggregate(cropland_raster, fact = 2) 
 cropland_distance <- distance(cropland_raster)
 names(cropland_distance) <- "distance_croplands"
 
@@ -929,7 +964,7 @@ ggplot(testSetProbs, aes(probs)) +
                     labels=c("No Change","New Development")) +
   labs(title = "Histogram of test set predicted probabilities",
        x="Predicted Probabilities",y="Density") +
-  plotTheme
+  plotTheme()
 ```
 
 ## Threshold Testing
