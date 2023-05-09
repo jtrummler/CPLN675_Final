@@ -1,0 +1,58 @@
+
+Linear Model 7 (Figure 4)
+==============================================
+                       Dependent variable:    
+                   ---------------------------
+                            lc_change         
+----------------------------------------------
+developed1                     0.4            
+                              (0.6)           
+                                              
+wetlands1                      0.1            
+                              (0.2)           
+                                              
+forest1                      -0.5***          
+                              (0.1)           
+                                              
+farm1                        0.3***           
+                              (0.1)           
+                                              
+otherUndeveloped1            0.3***           
+                              (0.1)           
+                                              
+interstateDist              -0.000***         
+                             (0.000)          
+                                              
+lagDevelopment              -0.004***         
+                             (0.001)          
+                                              
+totalPop2011                 -0.002           
+                             (0.003)          
+                                              
+totalPop2019                  0.004           
+                             (0.004)          
+                                              
+popChange                                     
+                                              
+                                              
+totalOccupied2011            0.02***          
+                             (0.01)           
+                                              
+totalOccupied2019             -0.01           
+                             (0.01)           
+                                              
+housingChange                                 
+                                              
+                                              
+distance_croplands            0.000           
+                             (0.000)          
+                                              
+Constant                       1.1            
+                              (1.2)           
+                                              
+----------------------------------------------
+Observations                  6,758           
+Log Likelihood              -3,698.9          
+Akaike Inf. Crit.            7,423.9          
+==============================================
+Note:              *p<0.1; **p<0.05; ***p<0.01

@@ -1,9 +1,27 @@
 ---
-title: "Urban Growth Modeling in Nashville, Tennessee"
+title: "Urban Growth Modeling in the Nashville Metro Area"
 author: "Shengqian Wang and Jack Rummler"
 date: "2023-04-26"
-output: html_document
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: flatly
 ---
+<style>
+  .superbigimage{
+      overflow-x:scroll;
+      white-space: nowrap;
+  }
+
+  .superbigimage img{
+     max-width: none;
+  }
+
+
+</style>
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -108,18 +126,18 @@ rast <- function(inRaster) {
 
 # Introduction
 
-As cities experience consistent population growth, urban growth forecasting is a tactful strategy to predict where people may live in the future. Planners are in a constant battle between balancing the economic potential of its cities with the negative ecological externalities and infrastructure demands urban growth poses on the city. Many cities and regions in the U.S. have experienced outward growth, meaning that development has sprawled to suburban and exurban parts of their region, rather than investing in densified in-fill projects. As cities are experiencing the ramifications of sprawling development on climate change mitigation, traffic impact, municipal tax bases, and other negative outcomes, forecasting where growth occurs is vital to understand how proper management of growth strategies can benefit a city. Looking at population projections and land cover data, we can understand areas that may have greater development pressure so planners can prepare for future growth scenarios. In this study, we forecast urban growth in the Nashville metropolitan area, also called the Nashville-Davidson–Murfreesboro–Franklin, TN MSA.
+As cities experience consistent population growth, urban growth forecasting is a tactful strategy to predict where people may live in the future. Planners are in a constant battle between balancing the economic potential of their cities with the negative ecological externalities and infrastructure demands urban growth poses in the city. Many cities and regions in the U.S. have experienced outward growth rather than investing in densified in-fill projects. As cities are feeling the ramifications of sprawl on climate change mitigation, traffic impacts, and municipal tax bases, forecasting where growth occurs is vital to understand how proper management of growth strategies can benefit a city. In this study, we forecast urban growth in the Nashville metropolitan area, also called the Nashville-Davidson–Murfreesboro–Franklin, TN MSA.
 
 ## Methodology
 
-We are developing a predictive model of urban growth for the year 2029. We do this by collecting land use cover change from the years 2011 and 2019 to analyze change between the two, and predict the land use change between 2019 and 2029. We also engineer a variety of features ranging from land use, population, infrastructure, and development. Land cover change, our dependent variable, and our predictive variables will be aggregated into a fishnet of our study region to create a granular, equal spatial structure. We will then use this model to develop an allocation procedure from both the demand side and supply side of future development.
+We are developing a predictive model of urban growth for the year 2029. We do this by collecting land use cover change from the years 2011 and 2019 to analyze change between the two, and predict the land use change between 2019 and 2029. We also engineer a variety of features ranging from land use, population, infrastructure, and development to predict growth patterns. Land cover change, our dependent variable, and our predictive variables will be aggregated into a fishnet of our study region to create a granular, equal spatial structure. We will then use this model to develop an allocation procedure from both the demand side and supply side of future development.
 
-**Demand:** Looking at population projections for the year 2029, we distribute population projections among Nashville MSA and predict land cover and future development in 2029.
-**Supply:** xxx
+**Demand:** Looking at population projections for the year 2029, we distribute growth demand projections among Nashville MSA.  
+**Supply:** We propose an extension to the interstate system and forecast how that changes urban growth forecasts.  
 
 ## Study Region: Nashville MSA
 
-```{r study area, warning=FALSE, message=FALSE}
+```{r study area, warning=FALSE, message=FALSE, results=FALSE}
 tennessee <- counties("TN") # county via tigris
 
 nashville <- tennessee %>%
@@ -129,7 +147,7 @@ nashville <- tennessee %>%
 
 ggplot()+
   geom_sf(data=tennessee, fill='grey', color='black')+
-  geom_sf(data=nashville, fill='red', color='red')+
+  geom_sf(data=nashville, fill=palette2[1], color=palette2[2])+
   labs(title="Nashville MSA")+
   mapTheme()
 ```
@@ -176,15 +194,15 @@ ggplot() +
 
 ## Land Use Change
 
-We retrieve land use change data from USGS National Land Cover Database, which can be found [here](https://www.mrlc.gov/data/nlcd-land-cover-change-index-conus). Particularly, we are looking at the change between 2009 and 2019. The land cover change data has 30 meter resolution, so we take the centroids of each hexbin and compare it to the land cover type to downsample the data, making it as accurate and computationally runnable as possible.
+We retrieve land use change data from USGS National Land Cover Database, which can be found [here](https://www.mrlc.gov/data/nlcd-land-cover-change-index-conus). Particularly, we are looking at the change between 2011 and 2019. The land cover change data has 30 meter resolution, so we take the centroids of each hexbin and compare it to the land cover type to downsample the data, making it as accurate and computationally runnable as possible.
 
-We reclassified the data into several different overarching types to build as features into our model, and use the land cover change between the 2 years as our dependent variable (0 = unchanged, 1 = changed).
+We reclassified the data into several different overarching types to build as features into our model, and use the land cover change between the 2 years as our dependent variable (0 = unchanged, 1 = newly developed).
 
-### Land Cover - 2009
+### Land Cover - 2011
 
-First, we look at the land cover in the year 2009.
+First, we look at the land cover in the year 2011.
 
-```{r landcover,  warning=FALSE, message=FALSE}
+```{r landcover,  warning=FALSE, message=FALSE, img.width=10}
 #NLCD LULC & LUCC
 
 lucc_input <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/final/luccmsa_resample.tif")
@@ -204,7 +222,7 @@ ggplot() +
   geom_sf(data=nashville) +
   geom_raster(data=rast(lulc_clip) %>% na.omit %>% filter(value > 0), 
               aes(x,y,fill=as.factor(value))) +
-  labs(title = "Land Cover (2009)", subtitle="Nashville MSA") +
+  labs(title = "Land Cover (2011)", subtitle="Nashville MSA") +
   scale_fill_manual(values=c(paletteQual), name="Land\nCover\nType")+
   mapTheme() +
   theme(legend.position="bottom")
@@ -212,23 +230,23 @@ ggplot() +
 
 ### Land Cover Change - 2009 to 2019
 
-We compare the land cover in 2009 and 2019, and map below the areas that changed, colored by the land type it changed to.
+We compare the land cover in 2011 and 2019, and map below the areas that changed, colored by the land type it changed to.
 
-```{r land change, warning=FALSE, message=FALSE}
+```{r land change, warning=FALSE, message=FALSE, img.width=10}
 #plot lucc
 ggplot() +
   geom_sf(data=nashville, fill="black") +
   geom_raster(data=rast(lucc_clip) %>% na.omit %>% filter(value > 0), 
               aes(x,y,fill=as.factor(value))) +
   scale_fill_manual(values=c(paletteQual), name="Land Cover Type")+
-  labs(title = "Land Cover Change (2009 to 2019)", subtitle="Nashville MSA") +
+  labs(title = "Land Cover Change (2011 to 2019)", subtitle="Nashville MSA") +
   mapTheme() +
   theme(legend.position="bottom")
 ```
 
 ### Binarized Classification of Change
 
-We also complete a reclassification matrix to feed into our land use change data to designate land type values of undeveloped to 0 and developed to 1. We then plot the change below, where values of 1 are in the teal color.
+We reclassify the centroids that changed to take on 1 values.
 
 ```{r reclass, warning=FALSE, message=FALSE}
 
@@ -253,13 +271,13 @@ names(lucc) <- "lc_change"
 
 # plot 1's
 ggplot() +
-  geom_sf(data=nashville, fill='black') +
+  geom_sf(data=nashville, fill=palette2[1]) +
   geom_raster(data=rast(lucc) %>% na.omit, 
               aes(x,y,fill=as.factor(value))) +
-  scale_fill_manual(values=paletteQual[6],
-                    name="Change")+
+  scale_fill_manual(values=palette2[2],
+                    name="")+
   #scale_fill_viridis(discrete=TRUE, name ="Land Cover\nChange") + 
-  labs(title="Land Use Change (2009 to 2019)", subtitle="Values of 1 indicate change") +
+  labs(title="Land Use Change (2011 to 2019)", subtitle="Values of 1 indicate change") +
   mapTheme()
 ```
 
@@ -280,37 +298,24 @@ ggplot() +
   geom_sf(data=nashville) +
   geom_point(data=fishnet, 
              aes(x=xyC(fishnet)$x, y=xyC(fishnet)$y, colour=lc_change)) +
-  scale_colour_manual(values = c("black", paletteQual[6]),
+  scale_colour_manual(values = palette2,
                       labels=c("No Change","New Development"),
                       name = "") +
   labs(title = "Land Cover Development Change", subtitle = "As fishnet centroids") +
   mapTheme()
 ```
 
-*EDIT*We see below that of our 15,072 fishnet cells, 9,856 (65.4%) did not experience land cover change and 5,216 (34.6%) are newly developed. We believe that when training and testing our model, there is a relatively decent balance of non-developed and developed observations, which hopefully improve our true positive (predicts change correctly), true negative (predicts non-change correctly), and accuracy.
+We see below that of our 10,364 fishnet cells, 8,361 (80%) did not experience land cover change and 2,003 (20%) are newly developed. We hope that when training and testing our model, there is a relatively decent balance of non-developed and developed observations, which hopefully will improve our true positive (predicts change correctly), true negative (predicts non-change correctly), and accuracy.
 
 ```{r table}
 table(fishnet$lc_change)
-```
-
-
-```{r}
-## plot land use in 2011
-# ggplot() +
-#   geom_sf(data=nashville) +
-#   geom_raster(data=rast(lulc_clip) %>% na.omit %>% filter(value > 0), 
-#               aes(x,y,fill=as.factor(value))) +
-#   scale_fill_viridis(discrete=TRUE, name ="") +
-#   labs(title = "Land Cover, 2011") +
-#   mapTheme() +
-#   theme(legend.direction="horizontal")
 ```
 
 ### Land Use Reclassification
 
 Based on the 15 land class values, we reclassified them into 6 broader categories: *developed*, *forest*, *farm*, *wetlands*, *other undeveloped*, and *water*. These new categories are then re-aggregated into our fishnet so we can see the predominant land type of each.
 
-```{r reclass, warning=FALSE, message=FALSE}
+```{r reclass2, warning=FALSE, message=FALSE}
 # landuse reclassification
 lulc_clip <- aggregate(lulc_clip, fact = 2)
 developed <- lulc_clip == 21 | lulc_clip == 22 | lulc_clip == 23 | lulc_clip == 24
@@ -390,11 +395,13 @@ The following features have been added to our fishnet below, in addition to our 
 4. Spatial Lag to Developed Areas
 5. Fixed Effect - Distance to Cropland
 
+We hypothesized that each of these features have some correlative effect to development patterns.
+
 ## Census Data
 
 We pulled two main variables from the census: total population and occupied housing units. We hypothesized that these were predictive of development, thus predictive of land use change. With a greater density of people and housing units, these areas are likely to grow. We gathered these variables at the census tract level.
 
-```{r access census, warning=FALSE, message=FALSE}
+```{r access census, warning=FALSE, message=FALSE, results=FALSE}
 census_api_key("3c896250ea8d421462ade754e4dcecdf8f55e0f2", overwrite = TRUE)
 
 nashvillePop2011 <- 
@@ -438,6 +445,7 @@ First, we look at total population within each census tract in years 2011 and 20
 grid.arrange(
   ggplot()+
     geom_sf(data=nashvillePop2011, aes(fill=q5(totalPop2011)), color=NA) +
+    geom_sf(data=nashville, color="white", fill=NA)+
     scale_fill_manual(values=paletteMain,
                       labels=(qBr(nashvillePop2011, "totalPop2011")),
                       name="Population\nQuintiles")+
@@ -446,6 +454,7 @@ grid.arrange(
     mapTheme(),
   ggplot()+
     geom_sf(data=nashvillePop2019, aes(fill=q5(totalPop2019)), color=NA) +
+    geom_sf(data=nashville, color="white", fill=NA)+
     scale_fill_manual(values=paletteMain,
                       labels=(qBr(nashvillePop2019, "totalPop2019")),
                       name="Population\nQuintiles")+
@@ -464,6 +473,7 @@ Now, we visualize the total occupied housing units in each census tract.
 grid.arrange(
   ggplot()+
     geom_sf(data=nashvillePop2011, aes(fill=q5(totalOccupied2011)), color=NA) +
+        geom_sf(data=nashville, color="white", fill=NA)+
     scale_fill_manual(values=paletteMain,
                       labels=(qB(nashvillePop2011, "totalOccupied2011")),
                       name="Housing Unit\nQuintiles")+
@@ -472,6 +482,7 @@ grid.arrange(
     mapTheme(),
   ggplot()+
     geom_sf(data=nashvillePop2019, aes(fill=q5(totalOccupied2019)), color=NA) +
+        geom_sf(data=nashville, color="white", fill=NA)+
     scale_fill_manual(values=paletteMain,
                       labels=(qB(nashvillePop2019, "totalOccupied2019")),
                       name="Housing Unit\nQuintiles")+
@@ -486,7 +497,7 @@ grid.arrange(
 
 We aggregate all of the census features for each year into our fishnet grid, and visualize them within the fishnet, also including the total change in population and housing units for each grid below.
 
-```{r cen to fish, warning=FALSE, message=FALSE, fig.width=10}
+```{r cen to fish, warning=FALSE, message=FALSE}
 fishnetPopulation11 <-
   st_interpolate_aw(nashvillePop2011["totalPop2011"], Nashville_fishnet, extensive=TRUE) %>%
   as.data.frame(.) %>%
@@ -535,34 +546,6 @@ fishnetCensus <-
 
 grid.arrange(
   ggplot()+
-    geom_sf(data=fishnetCensus, aes(fill=q5(totalPop2011)), color=NA)+
-    scale_fill_manual(values=paletteMain,
-                      labels=(qB(fishnetCensus, "totalPop2011")),
-                      name="Quintiles")+
-    labs(title="Fishnet: 2011 Population")+
-    mapTheme(),
-  ggplot()+
-    geom_sf(data=fishnetCensus, aes(fill=q5(totalPop2019)), color=NA)+
-    scale_fill_manual(values=paletteMain,
-                      labels=(qB(fishnetCensus, "totalPop2019")),
-                      name="Quintiles")+
-    labs(title="Fishnet: 2019 Population")+
-    mapTheme(),
-  ggplot()+
-    geom_sf(data=fishnetCensus, aes(fill=q5(totalOccupied2011)), color=NA)+
-    scale_fill_manual(values=paletteMain,
-                      labels=(qB(fishnetCensus, "totalOccupied2011")),
-                      name="Quintiles")+
-    labs(title="Fishnet: 2011 Occupied Housing Units")+
-    mapTheme(),
-  ggplot()+
-    geom_sf(data=fishnetCensus, aes(fill=q5(totalOccupied2019)), color=NA)+
-    scale_fill_manual(values=paletteMain,
-                      labels=(qB(fishnetCensus, "totalOccupied2019")),
-                      name="Quintiles")+
-    labs(title="Fishnet: 2019 Occupied Housing Units")+
-    mapTheme(),
-  ggplot()+
     geom_sf(data=fishnetCensus, aes(fill=q5(popChange)), color=NA)+
     scale_fill_manual(values=paletteMain,
                       labels=(qB(fishnetCensus, "popChange")),
@@ -576,68 +559,15 @@ grid.arrange(
                       name="Quintiles")+
     labs(title="Fishnet: Housing Units Change")+
     mapTheme(),
-  ncol=2
+  ncol=1
 )
-```
-
-
-```{r fishnet permits,warning=FALSE, message=FALSE}
-fishnetPermits <-
-  dplyr::select(buildingPermits) %>% 
-  mutate(countPermits = 1) %>% 
-  aggregate(., Nashville_fishnet, sum) %>%
-  as.data.frame(.) %>%
-  rownames_to_column(var = "fishnetID") %>%
-  left_join(Nashville_fishnet %>%
-              mutate(fishnetID = as.character(fishnetID)),
-            ., by=c("fishnetID"='fishnetID')) %>% 
-  dplyr::select(countPermits)
-
-fishnetPermits$countPermits <- ifelse(is.na(fishnetPermits$countPermits), 0, fishnetPermits$countPermits)
-
-colorRampMain <- colorRampPalette(paletteMain)
-colorRampMain5 <- colorRampMain(5)
-
-ggplot()+
-  geom_sf(data=fishnetPermits, aes(fill=as.numeric(countPermits)), color=NA)+
-  scale_fill_viridis(option="G", direction=-1,
-                     name="Count") +
-  labs(title="Fishnet: Count of Building Permits", subtitle="Nashville MSA (2020 to 2023)")+
-  mapTheme()
-
-```
-
-
-```{r}
-# theRasterList <- c(developed,forest,farm,wetlands,otherUndeveloped,water)
-# 
-# aggregatedRasters <-
-#   aggregateRaster(theRasterList, Nashville_fishnet) %>%
-#   dplyr::select(developed,forest,farm,wetlands,otherUndeveloped,water) %>%
-#   mutate_if(is.numeric,as.factor)
-# 
-# aggregatedRasters %>%
-#   gather(var,value,developed:water) %>%
-#   st_cast("POLYGON") %>%    #just to make sure no weird geometries slipped in
-#   mutate(X = xyC(.)$x,
-#          Y = xyC(.)$y) %>%
-#   ggplot() +
-#     geom_sf(data=nashville) +
-#     geom_point(aes(X,Y, colour=as.factor(value))) +
-#     facet_wrap(~var) +
-#     scale_colour_manual(values = palette2,
-#                         labels=c("Other","Land Cover"),
-#                         name = "") +
-#     labs(title = "Land Cover Types, 2001",
-#          subtitle = "As fishnet centroids") +
-#    mapTheme()
 ```
 
 ## Distance to Interstate
 
-Another distance-based classification we did was distance to interstates. We accessed interstate data from the Tigris package in R. We hypothesized new development may occur in areas with closer proximity to the interstate due to ease of accessibility. We first visualize interstates below.
+Our first distance-based classification we did was distance to interstates. We accessed interstate data from the Tigris package in R. We hypothesized new development may occur in areas with closer proximity to the interstate due to ease of accessibility. We first visualize interstates below.
 
-```{r int, warning=FALSE, message=FALSE}
+```{r int, warning=FALSE, message=FALSE, results=FALSE}
 nashvilleInterstate <- roads("TN", c("Cheatham", "Davidson", "Dickson", "Macon", "Robertson", "Rutherford", "Smith", "Sumner", "Trousdale", "Williamson", "Wilson", "Maury", "Cannon")) %>%
   dplyr::filter(RTTYP %in% "I") %>%
   st_transform(crs = 2274)
@@ -687,7 +617,7 @@ ggplot() +
 
 ## Spatial Lag to Development
 
-Another feature we hypothesized is the spatial lag to already developed fishnets. We believe that as areas within the county grow, for the sake of creating continuous developed space, new development will be a function of current development. 
+Another feature we hypothesized is the spatial lag to already developed fishnets. We believe that as areas within the MSA grow, for the sake of creating continuous developed space, new development will be a function of current development. 
 
 ```{r spatial lag, warning=FALSE, message=FALSE}
 #define function
@@ -735,16 +665,18 @@ ggplot() +
   geom_point(data=fishnet, 
              aes(x=xyC(fishnet)[,1], 
                  y=xyC(fishnet)[,2], 
-                 colour=lagDevelopment)) +
-  scale_colour_viridis(option="G", direction=-1, name="Distance") +
+                 colour=factor(ntile(lagDevelopment, 5))), size = 1.5) +
+    scale_colour_manual(values = paletteMain,
+                      labels=substr(quintileBreaks(fishnet, "lagDevelopment"), 1, 8),
+                      name="Quintile\nBreaks")+
   labs(title = "Spatial Lag to Development",
        subtitle = "As fishnet centroids") +
   mapTheme()
 ``` 
 
-## Fixed Effect - Cropland
+## Spatial Lag to Croplands
 
-Our final feature is a fixed effect, distance to croplands. This is another example of how distance to a certain land type may be useful to understand development patterns.
+Our final feature is a fixed effect, distance to croplands. Using USGS data, we reclassified land types 81 and 82, and determined spatial lag to these areas. Cropland was an arbitrary choice, but reflects again how distance to a certain land type may be useful to understand development patterns, especially a land cover like cropland that may be antithetical to development.
 
 ```{r crops, warning=FALSE, message=FALSE}
 crop_VALUE1 <- 81
@@ -772,7 +704,7 @@ cropland_Points <-
 
 cropland_Points_fishnet <- 
   aggregate(cropland_Points, Nashville_fishnet, mean) %>%
-  mutate(distance_croplands = ifelse(is.na(distance_croplands), 0, distance_croplands))
+  mutate(croplandsDist = ifelse(is.na(distance_croplands), 0, distance_croplands))
 
 
 
@@ -780,9 +712,9 @@ ggplot() +
   geom_sf(data=nashville) +
   geom_point(data=cropland_Points_fishnet, aes(x=xyC(cropland_Points_fishnet)[,1], 
                                                y=xyC(cropland_Points_fishnet)[,2], 
-                                               colour=factor(ntile(distance_croplands, 5))), size=1.5) +
+                                               colour=factor(ntile(croplandsDist, 5))), size=1.5) +
   scale_colour_manual(values = paletteMain,
-                      labels=substr(quintileBreaks(cropland_Points_fishnet, "distance_croplands"), 1, 8),
+                      labels=substr(quintileBreaks(cropland_Points_fishnet, "croplandsDist"), 1, 8),
                       name="Quintile\nBreaks") +
   #  geom_raster(data=cropland_raster, aes(x, y, fill=as.factor(value)), alpha=0.5) + # Add the cropland raster to the plot
   labs(title = "Distance to Croplands",
@@ -790,40 +722,63 @@ ggplot() +
   mapTheme()
 ```
 
-## Supply Side Scenario: 
+## Supply Side Solution: I-840 Expansion
+
+In the supply side solution of our modeling work, we decided to understand how a new interstate expansion would impact development demand. We drew a hypothetical interstate line using Google Earth Pro, which would be a continuation of I-840, and would intersect with I-40 and I-65.
+
+```{r supply side solution, warning=FALSE, message=FALSE, results=FALSE}
+newInterstate <- st_read("C:/Users/jtrum/Desktop/CPLN6750/int.kml") %>%
+  st_transform(st_crs(nashvilleInterstate))
+
+ggplot()+
+  geom_sf(data=nashville, fill="black", color="white")+
+  geom_sf(data=nashvilleInterstate, fill="red", color='red')+
+  geom_sf(data=newInterstate, fill="#FFD54F", color="#FFD54F", aes(geometry = geometry))+
+  labs(title="Proposed Interstate Expansion", subtitle="Nashville MSA", caption="County boundaries in white\nInterstates in red")+
+  mapTheme()
+
+```
+
+We now calculate the distance of each fishnet cell to the new interstate, which will be re-visited in Section 7.
+
+```{r new interstate distance, supply side solution, warning=FALSE, message=FALSE, results=FALSE}
+fishnetSupply <- fishnet %>%
+  mutate(uniqueID = as.character(row_number()))
+
+fishnet_centroid2 <- fishnetSupply %>%
+  st_centroid()
+
+newInterstateDist <- fishnet_centroid2 %>%
+  st_distance(newInterstate %>%
+                st_transform(st_crs(fishnet_centroid2))) %>%
+  as.data.frame() %>%
+  mutate(uniqueID = as.character(row_number())) %>%
+  gather(-uniqueID, key = "variable", value = "value") %>%
+  dplyr::select(-variable) %>%
+  group_by(uniqueID) %>%
+  summarize(newInterstateDist = min(value))
+
+newInterstateDist$newInterstateDist <- as.numeric(gsub("\\[US_survey_foot\\]", "", newInterstateDist$newInterstateDist))
+
+fishnet <- left_join(fishnetSupply, newInterstateDist)
+
+ggplot() +
+  geom_point(data=fishnet, aes(x=xyC(fishnet)[,1], 
+                               y=xyC(fishnet)[,2], 
+                               colour=factor(ntile(newInterstateDist,5))),size=1.5) +
+  scale_colour_manual(values = paletteMain,
+                      labels=substr(quintileBreaks(newInterstateDist,"newInterstateDist"),1,8),
+                      name="Quintile\nBreaks") +
+  geom_sf(data=nashvilleInterstate, colour="black")+
+  geom_sf(data=newInterstate, colour = "red") +
+  labs(title = "Distance to Interstate Proposal",
+       subtitle = "New interstate visualized in red\nExisting interstates visualized in black") +
+  mapTheme()
+```
 
 ## Final Fishnet
 
-We develop a final dataset of all of our features to use for modeling purposes, where variable *lc_change* serves as our dependent variable.
-
-```{r}
-# fishnet has interstate distance and spatial lag of development
-# needs all of the census variables, distance to bus stop, fixed effects, building permit apps
-
-dat <- 
-  cbind(
-    fishnet, aggregatedRasters, fishnetCensus, cropland_Points_fishnet) %>%
-  dplyr::select(lc_change, 
-                developed, 
-                forest, 
-                farm, 
-                wetlands, 
-                otherUndeveloped,
-                water,
-                interstateDist,
-                lagDevelopment,
-                totalPop2011,
-                totalPop2019,
-                totalOccupied2011,
-                totalOccupied2019,
-                popChange,
-                housingChange,
-                distance_croplands) %>%
-  mutate(developed19 = ifelse(lc_change == 1 & developed == 1, 0, developed)) %>%
-  filter(water == 0) 
-```
-
-```{r}
+```{r study area counties, supply side solution, warning=FALSE, message=FALSE, results=FALSE}
 options(tigris_class = "sf")
 
 studyAreaCounties <- 
@@ -833,27 +788,56 @@ studyAreaCounties <-
   .[st_buffer(nashville,-1000), , op=st_intersects]
 ```
 
+We develop a final dataset of all of our features to use for modeling purposes, where variable *lc_change* serves as our dependent variable.
+
+```{r final fishnet, supply side solution, warning=FALSE, message=FALSE, results=FALSE}
+# fishnet has interstate distance and spatial lag of development
+# needs all of the census variables, distance to bus stop, fixed effects, building permit apps
+
+dat <- 
+  cbind(
+    fishnet, aggregatedRasters, fishnetCensus, cropland_Points_fishnet) %>%
+  dplyr::select(lc_change,
+                interstateDist,
+                newInterstateDist,
+                lagDevelopment,
+                developed,
+                forest,
+                farm,
+                otherUndeveloped,
+                water,
+                wetlands,
+                totalPop2011,
+                totalPop2019,
+                totalOccupied2011,
+                totalOccupied2019,
+                popChange,
+                housingChange,
+                croplandsDist
+                ) %>%
+  st_join(studyAreaCounties) %>%
+  mutate(developed19 = ifelse(lc_change == 1 & developed == 1, 0, developed)) %>%
+  filter(water == 0) 
+```
+
+
+
 # Exploratory Analysis
 
 Next, we made some plots to explore the implications of our predictive variables on land use change.
 
 ## New Development as a Function of Distance to Built Environment Amenities
 
-First, we calculated each fishnet's average distance to some of our features, grouped by their classification of land use change. We compared the spatial lag to development, distance to bus stops, and distance to interstate. We notice below that new development is on average 3 times closer to bus stops than non-developed. New development is closer than non-developed cells in all of our distance features.
+First, we calculated each fishnet's average distance to some of our features, grouped by their classification of land use change. We compared the spatial lag to development, distance to croplands, and distance to interstate. We notice below that new development is on average twice as close to interstates and the spatial lag of development, and an a cell is just slightly more likely to be closer to cropland if unchanged.
 
 ```{r warning=FALSE, message=FALSE, fig.width=10}
-dat2 <- dat %>%
-  rename("Distance_Bus_Stops" = distance_stops,
-         "Distance_Interstate" = interstateDist,
-         "Development_Lag" = lagDevelopment)
-
-dat2 %>%
-  dplyr::select(Distance_Interstate, Distance_Bus_Stops, Development_Lag, lc_change) %>%
+dat %>%
+  dplyr::select(lagDevelopment, interstateDist, croplandsDist, lc_change) %>%
   gather(Variable, Value, -lc_change, -geometry) %>%
   ggplot(., aes(lc_change, Value, fill=lc_change)) + 
   geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
   facet_wrap(~Variable) +
-  scale_fill_manual(values = c("black", paletteQual[6]),
+  scale_fill_manual(values = palette2,
                     labels=c("No Change","New Development"),
                     name="") +
   labs(title="New Development as a Function of Distance Variables") +
@@ -862,7 +846,7 @@ dat2 %>%
 
 ## New Development as a Function of Distance to Population
 
-Next, we see total population in years 2011 and 2019, in addition to population change, that there are a greater number of people living in newly developed areas over unchanged areas, which indicates there is greater demand for areas that are newly developed.
+Next, we see total population in years 2011 and 2019, in addition to population change, that there are a greater number of people living in newly developed areas over unchanged areas, which indicates there is greater demand for areas that are experiencing population growth.
 
 ```{r, warning=FALSE, fig.width=10, message=FALSE}
 dat %>%
@@ -871,10 +855,10 @@ dat %>%
   ggplot(., aes(lc_change, Value, fill=lc_change)) + 
   geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
   facet_wrap(~Variable) +
-  scale_fill_manual(values = c("black", paletteQual[6]),
+  scale_fill_manual(values = palette2,
                     labels=c("No Change","New Development"),
                     name="") +
-  labs(title="New Development as a Function of Population Variables", caption = "Figure 3.2") +
+  labs(title="New Development as a Function of Population Variables") +
   plotTheme()
 ```
 
@@ -889,18 +873,18 @@ dat %>%
   ggplot(., aes(lc_change, Value, fill=lc_change)) + 
   geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
   facet_wrap(~Variable) +
-  scale_fill_manual(values = c("black", paletteQual[6]),
+  scale_fill_manual(values = palette2,
                     labels=c("No Change","New Development"),
                     name="") +
-  labs(title="New Development as a Function of Occupancy Status", caption = "Figure 3.2") +
+  labs(title="New Development as a Function of Occupancy Status") +
   plotTheme()
 ```
 
 # Modeling
 
-*NEEDS WRITING*
+We begin our modeling process by splitting the data into an equally sized training and testing set, partitioned on the *developed* land use classification. We create six different binary logistic regression models, each increasing with number of variables.
 
-```{r}
+```{r model 407, warning=FALSE, message=FALSE, results=FALSE}
 set.seed(407)
 trainIndex <- 
   createDataPartition(dat$developed, p = .50,
@@ -908,10 +892,9 @@ trainIndex <-
                                   times = 1)
 datTrain <- dat[ trainIndex,]
 datTest  <- dat[-trainIndex,]
-
-nrow(dat)
 ```
-```{r}
+
+```{r first six models, warning=FALSE, message=FALSE, results=FALSE}
 Model1 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped, 
               family="binomial"(link="logit"), data = datTrain) # only land type features
 
@@ -921,39 +904,45 @@ Model2 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndevelope
 Model3 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped + totalPop2011 + totalPop2019 + popChange + totalOccupied2011 + totalOccupied2019 + housingChange, # plus housing occupancy features
               family="binomial"(link="logit"), data = datTrain)          
               
-Model4 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped + totalPop2011 + totalPop2019 + popChange + totalOccupied2011 + totalOccupied2019 + housingChange + distance_croplands, # plus cropland spatial feature
+Model4 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped + totalPop2011 + totalPop2019 + popChange + totalOccupied2011 + totalOccupied2019 + housingChange + croplandsDist, # plus cropland spatial feature
               family="binomial"(link="logit"), data = datTrain)              
             
-Model5 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped + totalPop2011 + totalPop2019 + popChange + totalOccupied2011 + totalOccupied2019 + housingChange + distance_croplands + interstateDist, # plus interstate spatial feature
+Model5 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped + totalPop2011 + totalPop2019 + popChange + totalOccupied2011 + totalOccupied2019 + housingChange + croplandsDist + interstateDist, # plus interstate spatial feature
               family="binomial"(link="logit"), data = datTrain)              
               
-Model6 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped + totalPop2011 + totalPop2019 + popChange + totalOccupied2011 + totalOccupied2019 + housingChange + distance_croplands + interstateDist + lagDevelopment, # plus development lag spatial feature
+Model6 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped + totalPop2011 + totalPop2019 + popChange + totalOccupied2011 + totalOccupied2019 + housingChange + croplandsDist + interstateDist + lagDevelopment, # plus development lag spatial feature
               family="binomial"(link="logit"), data = datTrain) 
 ```
 
-```{r}
+Looking at our model with the most variables, we see several features have high importance to our model, especially interstate distance and lag of development.
+
+```{r model6 sum, warning=FALSE, message=FALSE, results=TRUE}
 summary(Model6)
 ```
 
 ## McFadden Score
 
-```{r}
+The McFadden Score, also known as the pseudo R-squared, helps give us insight to explaining how much our variables explain variance in land patterns. Our model 6 has the highest R-squared, though all of the models are quite low.
+
+```{r mcfadden, warning=FALSE, message=FALSE, results=FALSE}
 modelList <- paste0("Model", 1:6)
 
 map_dfc(modelList, function(x)pR2(get(x)))[4,] %>%
   setNames(paste0("Model",1:6)) %>%
   gather(Model,McFadden) %>%
   ggplot(aes(Model,McFadden)) +
-    geom_bar(stat="identity") +
-    geom_text(aes(label=round(McFadden,4)), vjust=-0.5) +
-    labs(title= "McFadden R-Squared by Model", caption = "Figure 5.1") +
+    geom_bar(stat="identity", fill=palette2[1]) +
+    geom_text(aes(label=round(McFadden,4)), vjust=1.5, color="white") +
+    labs(title= "McFadden Score by Model") +
     plotTheme()
 
 ```
 
 ## Density of Observations
 
-```{r}
+This plot indicated the histogram of our test set predicted probabilities classified by land use change. We expect the density of *no change* to fall closer to 0 along the x-axis, and the density of *new development* to fall closer to 1 on the x-axis. 
+
+```{r density histograms, warning=FALSE, message=FALSE, results=FALSE}
 testSetProbs <- 
   data.frame(class = datTest$lc_change,
              probs = predict(Model6, datTest, type="response")) 
@@ -961,21 +950,26 @@ testSetProbs <-
 ggplot(testSetProbs, aes(probs)) +
   geom_density(aes(fill=class), alpha=0.5) +
   scale_fill_manual(values = palette2,
-                    labels=c("No Change","New Development")) +
-  labs(title = "Histogram of test set predicted probabilities",
+                    labels=c("No Change","New Development"),
+                    name="Land Change Class") +
+  labs(title = "Histogram of Predicted Probabilities",
        x="Predicted Probabilities",y="Density") +
   plotTheme()
 ```
 
 ## Threshold Testing
 
-```{r}
+We experiment with two probability thresholds: 22% and 32%. These thresholds help us binarize probabilities, so that anything falling under the threshold gets assigned 0 (no change), and anything above the threshold gets assigned 1 (new development). We chose these values 
+
+We see that from the table: both thresholds do an okay job at correctly predicting new development (sensitivity), a much better job at predicting no change (specificity), and have pretty decent accuracy scores.
+
+```{r threshold testing, warning=FALSE, message=FALSE}
 options(yardstick.event_first = FALSE)
 
 testSetProbs <- 
   testSetProbs %>% 
-  mutate(predClass_05 = as.factor(ifelse(testSetProbs$probs >= 0.05 ,1,0)),
-         predClass_17 = as.factor(ifelse(testSetProbs$probs >= 0.17 ,1,0))) 
+  mutate(predClass_22 = as.factor(ifelse(testSetProbs$probs >= 0.22 ,1,0)),
+         predClass_32 = as.factor(ifelse(testSetProbs$probs >= 0.32 ,1,0))) 
 
 testSetProbs %>%
   dplyr::select(-probs) %>%
@@ -985,30 +979,40 @@ testSetProbs %>%
             Specificity = round(yardstick::spec_vec(class,factor(Value)),2),
             Accuracy = round(yardstick::accuracy_vec(class,factor(Value)),2)) %>% 
   kable() %>%
-  kable_styling(full_width = F)
+  kable_styling(full_width = F, bootstrap_options = c("bordered"))
 ```
 
-```{r}
+```{r development predictions, warning=FALSE, message=FALSE, results=FALSE}
 predsForMap <-         
   dat %>%
     mutate(probs = predict(Model6, dat, type="response") ,
-           Threshold_5_Pct = as.factor(ifelse(probs >= 0.05 ,1,0)),
-           Threshold_17_Pct =  as.factor(ifelse(probs >= 0.17 ,1,0))) %>%
-    dplyr::select(lc_change,Threshold_5_Pct,Threshold_17_Pct) %>%
+           Threshold_22_Pct = as.factor(ifelse(probs >= 0.22 ,1,0)),
+           Threshold_32_Pct =  as.factor(ifelse(probs >= 0.32 ,1,0))) %>%
+    dplyr::select(lc_change,Threshold_22_Pct,Threshold_32_Pct) %>%
     gather(Variable,Value, -geometry) %>%
     st_cast("POLYGON")
+
+# ggplot() +
+#   geom_point(data=predsForMap, aes(x=xyC(predsForMap)[,1], y=xyC(predsForMap)[,2], colour=Value)) +
+#   facet_wrap(~Variable) +
+#   scale_colour_manual(values = palette2, labels=c("No Change","New Development"),
+#                       name="") +
+#   labs(title="Development Predictions", subtitle="Actual Land Cover Change, Land Cover Change at 22%, Land Cover Change at 32%") + 
+#   mapTheme()+theme(legend.position = "bottom")
 ```
 
-```{r}
+With the plot below, we see an increase in threshold increases incorrect unchanged predictions and an increase in correct new development predictions.
+
+```{r conf matrix, warning=FALSE, message=FALSE}
 ConfusionMatrix.metrics <-
   dat %>%
     mutate(probs = predict(Model6, dat, type="response") ,
-           Threshold_50_Pct = as.factor(ifelse(probs >= 0.5 ,1,0)),
-           Threshold_70_Pct =  as.factor(ifelse(probs >= 0.7 ,1,0))) %>%
-    mutate(TrueP_50 = ifelse(layer  == 1 & Threshold_50_Pct == 1, 1,0),
-           TrueN_50 = ifelse(layer  == 0 & Threshold_50_Pct == 0, 1,0),
-           TrueP_70 = ifelse(layer  == 1 & Threshold_70_Pct == 1, 1,0),
-           TrueN_70 = ifelse(layer  == 0 & Threshold_70_Pct == 0, 1,0)) %>%
+           Threshold_22_Pct = as.factor(ifelse(probs >= 0.22 ,1,0)),
+           Threshold_32_Pct =  as.factor(ifelse(probs >= 0.32 ,1,0))) %>%
+    mutate(TrueP_22 = ifelse(lc_change  == 1 & Threshold_22_Pct == 1, 1,0),
+           TrueN_22 = ifelse(lc_change  == 0 & Threshold_22_Pct == 0, 1,0),
+           TrueP_32 = ifelse(lc_change  == 1 & Threshold_32_Pct == 1, 1,0),
+           TrueN_32 = ifelse(lc_change  == 0 & Threshold_32_Pct == 0, 1,0)) %>%
     dplyr::select(., starts_with("True")) %>%
     gather(Variable, Value, -geometry) %>%
     st_cast("POLYGON") 
@@ -1019,12 +1023,17 @@ ggplot(data=ConfusionMatrix.metrics) +
   facet_wrap(~Variable) +
   scale_colour_manual(values = palette2, labels=c("Correct","Incorrect"),
                        name="") +
-  labs(title="Development Predictions - Low Threshold", caption = "Figure 5.5") + mapTheme
+  labs(title="Development Predictions",
+       subtitle="Threshold of 22% and 32%") + mapTheme()
 ```
 
 ## Spatial Cross-Validation
 
-```{r}
+To prove our model is generalizable to different contexts, we cross-validate our model based on individual county's land use change patterns. We run a spatial cross-validation function to loop over our data and complete a leave-one-group-out cross validation (LOGO-CV) metric, classify outcomes by county, and assess their true positive, true negative, and accuracy scores.
+
+From the graph below, we see a general trend of lower sensitivity, higher specificity, and relatively high accuracy, mirroring our model's predictions, indicating this model is applicable to a variety of contexts.
+
+```{r spatial cv, warning=FALSE, message=FALSE, results=FALSE}
 spatialCV <- function(dataFrame, uniqueID, dependentVariable, modelName) {
 
 #initialize a data frame 
@@ -1065,10 +1074,13 @@ endList <- list()
 #return the final list of counties and associated predictions  
   return (as.data.frame(endList))
 }
+```
 
+```{r spatial cv counties, warning=FALSE, message=FALSE, results=FALSE}
 spatialCV_counties <-
-  spatialCV(dat,"NAME","layer", Model6) %>%
-  mutate(predClass = as.factor(ifelse(probs >= 0.70 ,1,0)))
+  spatialCV(dat,"NAME","lc_change", Model6) %>%
+  mutate(predClass = as.factor(ifelse(probs >= 0.22 ,1,0)))
+
 
 spatialCV_metrics <-
   spatialCV_counties %>% 
@@ -1079,13 +1091,32 @@ spatialCV_metrics <-
               Accuracy = round(yardstick::accuracy_vec(class,predClass),2)) 
 
 spatialCV_metrics %>%
-  kable() %>%
-  kable_styling(full_width = F)
+  dplyr::select(-c('Observed_Change')) %>%
+  gather(key = "metric", value = "value", -county) %>%
+  arrange(county) %>%
+  ggplot(aes(x = county, y = value, fill = metric)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values=c(paletteMain[1], paletteMain[3], paletteMain[5]))+
+  labs(x = "Value", y = "Name", fill = "Metric",
+       title="Confusion Matrix Metrics by County",
+       subtitle = "LOGO-CV") +
+  plotTheme()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
 ```
 
 # Demand-Side Solution: Predicting for Development in 2029
 
-```{r}
+We further develop this model to try to predict land cover change demand in 2029, connceting back to our use case that planners can use this sort of model to understand the spatial patterns of land use change. We begin this process by analyzing population change between 2019 and 2029 at the county level.
+
+## Population Change (2019 to 2029)
+
+We pulled population projections from the [University of Tennessee Boyd Center for Business and Economic Research](https://tnsdc.utk.edu/estimates-and-projections/boyd-center-population-projections/).
+
+```{r dat1, warning=FALSE, message=FALSE, results=FALSE}
+dat1 <-
+  dat %>%
+  mutate(lagDevelopment = nn_function(xyC(.), xyC(filter(.,developed19 == 1)),2))
+
 countyPopulation_2030 <- 
   data.frame(
    NAME = 
@@ -1122,6 +1153,8 @@ countyPopulation_2030 <-
        group_by(NAME) %>%
        summarize(county_population_2019 = round(sum(totalPop2019))))
 
+countyPopulation_2030_wPct <- countyPopulation_2030 %>%
+  mutate(pctChange = (county_projection_2030-county_population_2019)/(county_projection_2030)*100)
 
 countyPopulation_2030 %>%
   gather(Variable,Value, -NAME) %>%
@@ -1133,15 +1166,15 @@ countyPopulation_2030 %>%
   labs(title="Population Change by County: 2019 - 2029",
        x="County", y="Population") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  plotTheme
+  plotTheme()
 
 ```
 
-```{r}
-dat1 <-
-  dat %>%
-  mutate(lagDevelopment = nn_function(xyC(.), xyC(filter(.,developed19 == 1)),2))
+## Development Demand (2029)
 
+We calculate infill potential of each county and feed it into our model 6, and look at the spatial characteristics of demand in 2029. We see there is a higher demand for development in more urbanized counties with high development already, with a decrease in development demand in counties with less population and more undeveloped land.
+
+```{r data infill, warning=FALSE, message=FALSE, results=FALSE}
 dat_infill <-
   dat1 %>%
   #calculate population change
@@ -1160,9 +1193,129 @@ dat_infill %>%
   scale_colour_manual(values = paletteMain,
                     labels=substr(quintileBreaks(dat_infill,"predict_2030.infill"),1,4),
                     name="Quintile\nBreaks") +
-  geom_sf(data=studyAreaCounties, fill=NA, colour="black", size=1) +
-  labs(title= "Development Demand in 2030: Predicted Probabilities", caption = "Figure 6.2") +
-  mapTheme
+  geom_sf(data=studyAreaCounties, fill=NA, colour="white", size=1) +
+  labs(title= "Development Demand in 2029", subtitle="Model 6") +
+  mapTheme()
 ```
 
-# Supply-Side Solution: 
+
+```{r development demand and env sus, warning=FALSE, message=FALSE, results=FALSE}
+lulc19 <- raster("https://github.com/ObjQIAN/warehouseii/raw/main/final/lulc19f2p_Resample.tif")
+
+developed19_1 <- lulc19 == 21 | lulc19 == 22 | lulc19 == 23 | lulc19 == 24
+forest19 <- lulc19 == 41 | lulc19 == 42 | lulc19 == 43 
+farm19 <- lulc19 == 81 | lulc19 == 82 
+wetlands19 <- lulc19 == 90 | lulc19 == 95 
+otherUndeveloped19 <- lulc19 == 52 | lulc19 == 71 | lulc19 == 31 
+water19 <- lulc19 == 11
+
+names(developed19_1) <- "developed19_1"
+names(forest19) <- "forest19"
+names(farm19) <- "farm19"
+names(wetlands19) <- "wetlands19"
+names(otherUndeveloped19) <- "otherUndeveloped19"
+names(water19) <- "water19"
+
+theRasterList19 <- c(developed19_1,forest19,farm19,wetlands19,otherUndeveloped19,water19)
+
+dat2 <-
+  aggregateRaster(theRasterList19, dat1) %>%
+  dplyr::select(developed19_1,forest19,farm19,wetlands19,otherUndeveloped19,water19) %>%
+  st_set_geometry(NULL) %>% 
+  bind_cols(.,dat1) %>%
+  st_sf() %>%
+  st_cast("POLYGON")
+
+dat2 <-
+  dat2 %>%
+   mutate(sensitive_lost19 = ifelse(forest == 1 & forest19 == 0 |
+                                    wetlands == 1 & wetlands19 == 0,1,0))
+
+# dat2 %>%
+#         sensitive_lost19 = ifelse(farm == 1 & farm19 == 0 |
+#                                     wetlands == 1 & wetlands19 == 0,1,0)
+# 
+# ggplot() +
+#   geom_point(data=dat2, aes(x=xyC(dat2)[,1], y=xyC(dat2)[,2], colour=as.factor(sensitive_lost19))) +
+#   scale_colour_manual(values = palette2,
+#                       labels=c("No Change","Sensitive Lost"),
+#                       name = "") +
+#   labs(title = "Sensitive lands lost: 2001 - 2011",
+#        subtitle = "As fishnet centroids") +
+#   mapTheme()
+```
+
+# Supply-Side Solution: I-840 Expansion
+
+Revisiting our proposed interstate expansion, we chose this as the Nashville MSA's interstate system felt as though there were gaps to fill. We drew a line that goes through Sumner and Wilson counties, which have the 2nd and 3rd highest projected growth rates, respectively.
+
+```{r county pop, warning=FALSE, message=FALSE, results=FALSE}
+countyPopulation_2030_wPct_sorted <- countyPopulation_2030_wPct[order(-countyPopulation_2030_wPct$pctChange),]
+
+kable(countyPopulation_2030_wPct_sorted) %>%
+  kable_styling(full_width = F, bootstrap_options = c("bordered")) %>%
+  row_spec(c(2,3), background = "#FFD54F")
+```
+
+## Modeling Development Demand
+
+```{r modeling development demand, warning=FALSE, message=FALSE, results=FALSE}
+set.seed(408)
+trainIndex2 <- 
+  createDataPartition(dat2$developed19_1, p = .50,
+                                  list = FALSE,
+                                  times = 1)
+datTrain2 <- dat2[ trainIndex,]
+datTest2  <- dat2[-trainIndex,]
+```
+
+We create our seventh model, which contains all of our features from before, in addition to our proposed interstate. We see significance in several of our variables again, including the distance to the new interstate.
+
+```{r model7, warning=FALSE, message=FALSE, results=TRUE}
+Model7 <- glm(lc_change ~ developed + wetlands + forest + farm + otherUndeveloped + totalPop2011 + totalPop2019 + popChange + totalOccupied2011 + totalOccupied2019 + housingChange + croplandsDist + interstateDist + lagDevelopment + newInterstateDist, 
+              family="binomial"(link="logit"), data = datTrain2) 
+
+summary(Model7)
+```
+
+## Map of Development Demand
+
+We plot below our development demand's with the new model. We can see that cells that the interstate crosses through have some of the highest development demand, and some of these cells did not belong to the higher quintiles before, indicating that interstate access and roadway accessibility can likely induce higher demand for development.
+
+```{r dat3, warning=FALSE, message=FALSE, results=FALSE}
+dat3 <-
+  dat2 %>%
+  mutate(lagDevelopment = nn_function(xyC(.), xyC(filter(.,developed19_1 == 1)),2))
+
+dat_infill3 <-
+  dat3 %>%
+  #calculate population change
+    left_join(countyPopulation_2030) %>%
+    mutate(proportion_of_county_pop = totalPop2019 / county_population_2019,
+           pop_2030.infill = proportion_of_county_pop * county_projection_2030,
+           pop_Change = round(pop_2030.infill - totalPop2019),2) %>%
+    dplyr::select(-county_projection_2030, -county_population_2019, 
+                  -proportion_of_county_pop, -pop_2030.infill) %>%
+  #predict for 2030
+    mutate(predict_2030.infill = predict(Model7,. , type="response"))
+
+  ggplot(dat_infill3) +  
+  geom_point(aes(x=xyC(dat_infill3)[,1], y=xyC(dat_infill3)[,2], colour = factor(ntile(predict_2030.infill,5)))) +
+  scale_colour_manual(values = paletteMain,
+                    labels=substr(quintileBreaks(dat_infill3,"predict_2030.infill"),1,4),
+                    name="Quintile\nBreaks") +
+  geom_sf(data=studyAreaCounties, fill=NA, colour="white", size=1) +
+  geom_sf(data=newInterstate, color="red", aes(geometry=geometry))+
+  labs(title= "Development Demand in 2029: Predicted Probabilities", subtitle="Model 7", caption="Interstate proposal in red") +
+  mapTheme()
+
+```
+
+# Conclusion
+
+Predicting growth can be extremely challenging for planners given the uncertainties of economic conditions, public policy, migration patterns, among several other reasons why a city's growth may change. While some existing methods often provide meaningful insight, leveraging regression modeling based on land cover change, demographic indicators, and built environment infrastructure appears to provide meaningful insights toward urban growth patterns.
+
+In this scenario, we modeled the growth of the Nashville MSA and developed models that were both accurate and generalizable. While our models did not explain a lot of the variance within variables, we were able to develop predictions that were consistently accurate and decently predicted no change or new development. We applied this to demand and supply scenarios to highlight the importance of both development patterns due to population change in addition to proximity to amenities.
+
+This model is definitely a very simplistic version of a model that could capture several more predictive features, but we show in this process that even with simple features, we can gain strong insights in land use planning patterns. Especially in a context area like Nashville MSA, with intense urban sprawl and an extremely rapid population growth, access to housing and amenities is becoming more vital than ever. Replicating this study could be extremely useful for both Nashville and other MSA's alike facing similar problems to understand where development has happened, where it is projected to happen, and how to enact better land use planning as a result.
+
